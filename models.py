@@ -4,7 +4,7 @@ import torch
 cuda_avail = torch.cuda.is_available()
 device = torch.device("cuda" if cuda_avail else "cpu")
 
-###########################################################################
+
 
 class Encoder(nn.Module):
     def __init__(self) -> None:
@@ -27,7 +27,6 @@ class Encoder(nn.Module):
         
         return self.encoder(x)
     
-
 class Decoder(nn.Module):
     def __init__(self) -> None:
         super().__init__()
@@ -50,8 +49,20 @@ class Decoder(nn.Module):
         x = x.view(-1, 64, 4, 4)
         return self.decoder(x)
     
+class Autoencoder(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
 
+        self.encoder = Encoder()
+        self.decoder = Decoder()
+
+    def forward(self, x):
+        x = self.encoder(x) 
+        x = self.decoder(x)
+        return x
     
+   
+
 class VariationalEncoder(nn.Module):
     def __init__(self) -> None:
         super().__init__()
@@ -84,8 +95,6 @@ class VariationalEncoder(nn.Module):
 
         return z, mu, log_variance
     
-###########################################################################
-
 class VAELoss(nn.Module):
     def __init__(self):
         super(VAELoss, self).__init__()
@@ -103,20 +112,6 @@ class VAELoss(nn.Module):
         kld = self.kl_loss(mu, log_variance)
         reconstruction = self.reconstruction_loss(targets, predictions)
         return torch.sum(kld + self.alpha*reconstruction)
-
-###########################################################################
-
-class Autoencoder(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-
-        self.encoder = Encoder()
-        self.decoder = Decoder()
-
-    def forward(self, x):
-        x = self.encoder(x) 
-        x = self.decoder(x)
-        return x
     
 class VariationalAutoencoder(nn.Module):
     def __init__(self) -> None:
@@ -130,4 +125,3 @@ class VariationalAutoencoder(nn.Module):
         x = self.decoder(x)
         return x, mu, log_variance
     
-###########################################################################
