@@ -22,6 +22,7 @@ class DenseAE(pl.LightningModule):
                  norm: Union[str, None] = None,
                  dropout: Union[float, None] = None,
                  type: str = 'dense',
+                 lr: float = 1e-3,
                 ):
         super().__init__()
 
@@ -35,8 +36,8 @@ class DenseAE(pl.LightningModule):
         self.encoder_width = encoder_width
         self.decoder_width = decoder_width
         self.scaling_factor = scaling_factor
-
-        self.block = MLPBlock if type == 'dense' else ConvBlock
+        self.lr = lr
+        self.block = MLPBlock
 
         # check that the scaling factor is valid
         if not (0 < scaling_factor < 1):
@@ -143,7 +144,7 @@ class DenseAE(pl.LightningModule):
         # return loss
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-3)
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
     
 
 class Reshape(nn.Module):
