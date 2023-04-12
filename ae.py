@@ -242,7 +242,7 @@ class ConvBlock(nn.Module):
                 nn.Conv2d(input_dim, 
                           output_dim, 
                           kernel_size=kernel_size, 
-                          stride=stride
+                          stride=stride,
                           padding=padding),
                 activation(),
                 nn.MaxPool2d(2)
