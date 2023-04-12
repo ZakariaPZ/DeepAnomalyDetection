@@ -2,7 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import *
+from torch.utils import data
+from torchvision import datasets, transforms
 
+import pytorch_lightning as pl
+from pytorch_lightning import Trainer
 
 class DenseAE(nn.Module):
     def __init__(self,
@@ -102,8 +106,7 @@ class ConvAE(nn.Module):
                  dropout: Union[float, None] = None,
                  padding : int = None,
                  kernel_size : int = None,
-                 pool_kernel : int = None,
-                 type: str = 'dense',
+                 pool_kernel : int = None
                 ):
         super().__init__()
 
@@ -181,9 +184,9 @@ class ConvAE(nn.Module):
         self.decoder = nn.Sequential(*blocks_dec)
 
     def forward(self, input):
-        latent_repr = self.encoder(input)
-        output = self.decoder(latent_repr)
-        return output
+        z = self.encoder(input)
+        x_hat = self.decoder(z)
+        return x_hat
         
 
 class MLPBlock(nn.Module):
@@ -272,7 +275,59 @@ class ConvBlock(nn.Module):
         return x
 
 
+
+class PretrainModule(pl.LightningModule):
+    def __init__(self,
+                 input_channels: int,
+                 Height : int,
+                 latent_dim: int,
+                 n_layers_encoder: int,
+                 n_layers_decoder: int,
+                 encoder_width: int,
+                 decoder_width: int,
+                 scaling_factor: int = 1/2.,
+                 norm: Union[str, None] = None,
+                 dropout: Union[float, None] = None,
+                 padding : int = None,
+                 kernel_size : int = None,
+                 pool_kernel : int = None
+                ):
+        super(PretrainModule, self).__init__()
+
+        self.model = ConvAE(input_channels, Height, latent_dim,
+                            n_layers_encoder, n_layers_decoder, 
+                            encoder_width, decoder_width, scaling_factor,
+                            norm, dropout, padding, 
+                            kernel_size, pool_kernel)
+
+    def training_step(self, batch, batch_idx):
+        # training_step defines the train loop.
+        # it is independent of forward
+        x, y = batch
+        x_hat = self(x)
+        loss = nn.functional.mse_loss(x_hat, x)
+      
+        return loss
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        return optimizer
+    
+    def train_dataloader(self):
+        mnist_data = datasets.MNIST(root='./data', train=True, download=True, 
+                                    transform=transforms.ToTensor())
+
+        batch_size = 64
+        # dataloader = data.DataLoader(mnist_data, batch_size=batch_size, shuffle=True, num_workers=8)
+        dataloader = data.DataLoader(mnist_data, batch_size=batch_size, shuffle=True)
+
+        return dataloader
+        
+    def forward(self, x):
+        return self.model(x)
+    
 if __name__ == "__main__":
+    
     MLP_args ={
         'input_dim' : [28*28] * 12,
         "n_layers_encoder" : [2,2,2,1,1,1,2,2,2,4,4,4,],
@@ -287,31 +342,32 @@ if __name__ == "__main__":
 
 
     CNN_args ={
-        'input_channels' : [1] * 12,
-        'Height' : [28] * 12,
-        "n_layers_encoder" : [2,2,2,1,1,1,2,2,2,4,4,4,],
-        'encoder_width' : [4,16,64] + [16]*9,
-        'n_layers_decoder' : [2,2,2,1,2,4,1,2,4,1,2,4,],
-        'decoder_width' : [4,16,64] + [16]*9,
-        'latent_dim' : [32] * 12,
-        'scaling_factor' : [1/2] * 12,
-        'norm' : ['batch'] * 12,
-        'dropout' : [0.3] * 12,
-        'padding' : [1] * 12,
-        'kernel_size' : [3] * 12,
-        'pool_kernel' : [2] * 12,
-        'type' : ['cnn'] * 12
+        'input_channels' : [1],
+        'Height' : [28],
+        "n_layers_encoder" : [2],
+        'encoder_width' : [16], # max num of channels
+        'n_layers_decoder' : [2],
+        'decoder_width' : [16], # max num of channels
+        'latent_dim' : [32], # FC 
+        'scaling_factor' : [1/2],
+        'norm' : ['batch'],
+        'dropout' : [0.3],
+        'padding' : [1],
+        'kernel_size' : [3],
+        'pool_kernel' : [2],
     }
 
 
-    for i in range(12):
+    for i in range(len(CNN_args['input_channels'])):
         args_ = {k: v[i] for k, v in CNN_args.items()}
         print(args_)
         # model = DenseAE(**args_)
-        model = ConvAE(**args_)
+        trainer = Trainer(max_epochs=10, fast_dev_run=False)
+        model = PretrainModule(**args_)
+
         # input = torch.randn(2, args_['input_dim'])
         input = torch.randn(2, 1, 28, 28)
         output = model(input)
-        print(output.shape)
         assert output.shape == input.shape, "Autoencoder output shape does not match input shape"
         
+        trainer.fit(model)
