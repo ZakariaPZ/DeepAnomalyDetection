@@ -157,7 +157,7 @@ class Reshape(nn.Module):
 class ConvAE(pl.LightningModule):
     def __init__(self,
                  input_channels: int,
-                 Height : int,
+                 height : int,
                  latent_dim: int,
                  n_layers_encoder: int,
                  n_layers_decoder: int,
@@ -185,17 +185,11 @@ class ConvAE(pl.LightningModule):
         self.kernel_size = kernel_size
         self.pool_kernel = int(pool_kernel) # convert kernel to int if float is passed
         self.block = ConvBlock
-        self.Height = Height
+        self.height = height
 
         # check that the scaling factor is valid
         if not (0 < scaling_factor < 1):
             raise ValueError(f'Invalid scaling factor: {scaling_factor}')
-        
-        # check if the number of layers, width and scaling factor are compatabile
-        if encoder_width * scaling_factor ** (n_layers_encoder - 1) % 1 != 0:
-            raise ValueError(f'Invalid combination of encoder params: {encoder_width * scaling_factor ** (n_layers_encoder - 1)}')
-        if decoder_width * (1/scaling_factor) ** (n_layers_decoder - 1) % 1 != 0:
-            raise ValueError(f'Invalid combination of decoder params: {decoder_width * (1/scaling_factor) ** (n_layers_decoder - 1)}')
         
         # Encoder
         blocks = []
@@ -213,25 +207,25 @@ class ConvAE(pl.LightningModule):
      
         blocks.append(nn.Flatten())
         num_channels = self.encoder_width
-        dims = int(Height*(1/self.pool_kernel)**(self.n_layers_encoder))
+        dims = int(height*(1/self.pool_kernel)**(self.n_layers_encoder))
         blocks.append(nn.Linear(num_channels * dims * dims, self.latent_dim))
         self.encoder = nn.Sequential(*blocks)
 
         # Decoder
-        decoder_dim = round(self.Height/2**self.n_layers_decoder)
+        decoder_dim = round(self.height/2**self.n_layers_decoder)
         blocks_dec = [nn.Linear(self.latent_dim, num_channels * decoder_dim * decoder_dim), 
                   Reshape(-1, num_channels, decoder_dim, decoder_dim)] 
         for i in range(self.n_layers_decoder):
-            H_in = round(Height*(1/self.pool_kernel)**(self.n_layers_decoder - i))
-            H_out = round(Height*(1/self.pool_kernel)**(self.n_layers_decoder - (i+1)))
+            H_in = round(height*(1/self.pool_kernel)**(self.n_layers_decoder - i))
+            H_out = round(height*(1/self.pool_kernel)**(self.n_layers_decoder - (i+1)))
             stride = 2 # 2 for upsampling with conv_transpose
             padding = self.padding
             dilation = 1
             kernel_size = self.kernel_size
             output_padding = H_out - ((H_in - 1) * stride - 2 * padding + dilation * (kernel_size - 1) + 1)
 
-            in_channels = num_channels if i == 0 else int(decoder_width * scaling_factor ** (i))
-            out_channels = input_channels if i == self.n_layers_decoder - 1 else int(decoder_width * scaling_factor ** (i + 1))
+            in_channels = num_channels if i == 0 else int(decoder_width * scaling_factor ** (i - 1))
+            out_channels = input_channels if i == self.n_layers_decoder - 1 else int(decoder_width * scaling_factor ** (i))
 
             blocks_dec.append(
                 self.block(
@@ -297,7 +291,7 @@ class ConvBlock(nn.Module):
                           stride=stride,
                           padding=padding),
                 activation(),
-                nn.MaxPool2d(2)
+                nn.MaxPool2d(2) # TODO: maybe change to variable
             )
 
         else:
@@ -305,8 +299,8 @@ class ConvBlock(nn.Module):
                 nn.ConvTranspose2d(input_dim,
                                 output_dim,
                                 kernel_size=kernel_size,
-                                padding=1,
-                                stride=2,
+                                padding=padding,
+                                stride=2, # TODO: maybe change to variable
                                 output_padding=output_padding),
                 activation()
             )
@@ -372,11 +366,11 @@ if __name__ == "__main__":
 
     CNN_args ={
         'input_channels' : [1],
-        'Height' : [28],
+        'height' : [28],
         "n_layers_encoder" : [2],
-        'encoder_width' : [16], # max num of channels
-        'n_layers_decoder' : [2],
-        'decoder_width' : [16], # max num of channels
+        'encoder_width' : [4], # max num of channels
+        'n_layers_decoder' : [3],
+        'decoder_width' : [8], # max num of channels
         'latent_dim' : [32], # FC 
         'scaling_factor' : [1/2],
         'norm' : ['batch'],
@@ -400,4 +394,5 @@ if __name__ == "__main__":
     input = torch.randn(2, 1, 28, 28)
     output = model(input)
     assert output.shape == input.shape, "Autoencoder output shape does not match input shape"
+    print(model)
         
