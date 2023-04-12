@@ -91,7 +91,7 @@ class Reshape(nn.Module):
 class ConvAE(nn.Module):
     def __init__(self,
                  input_channels: int,
-                 H : int,
+                 Height : int,
                  latent_dim: int,
                  n_layers_encoder: int,
                  n_layers_decoder: int,
@@ -119,9 +119,8 @@ class ConvAE(nn.Module):
         self.padding = padding
         self.kernel_size = kernel_size
         self.pool_kernel = int(pool_kernel) # convert kernel to int if float is passed
-        self.static = False
         self.block = ConvBlock
-        self.H = H
+        self.Height = Height
 
         # check that the scaling factor is valid
         if not (0 < scaling_factor < 1):
@@ -149,17 +148,17 @@ class ConvAE(nn.Module):
      
         blocks.append(nn.Flatten())
         num_channels = self.encoder_width
-        dims = int(H*(1/self.pool_kernel)**(self.n_layers_encoder))
+        dims = int(Height*(1/self.pool_kernel)**(self.n_layers_encoder))
         blocks.append(nn.Linear(num_channels * dims * dims, self.latent_dim))
         self.encoder = nn.Sequential(*blocks)
 
         # Decoder
-        decoder_dim = round(self.H/2**self.n_layers_decoder)
+        decoder_dim = round(self.Height/2**self.n_layers_decoder)
         blocks_dec = [nn.Linear(self.latent_dim, num_channels * decoder_dim * decoder_dim), 
                   Reshape(-1, num_channels, decoder_dim, decoder_dim)] 
         for i in range(self.n_layers_decoder):
-            H_in = round(H*(1/self.pool_kernel)**(self.n_layers_decoder - i))
-            H_out = round(H*(1/self.pool_kernel)**(self.n_layers_decoder - (i+1)))
+            H_in = round(Height*(1/self.pool_kernel)**(self.n_layers_decoder - i))
+            H_out = round(Height*(1/self.pool_kernel)**(self.n_layers_decoder - (i+1)))
             stride = 2 # 2 for upsampling with conv_transpose
             padding = self.padding
             dilation = 1
@@ -175,8 +174,7 @@ class ConvAE(nn.Module):
                     out_channels,
                     norm=norm, dropout=dropout, output_padding=output_padding,
                     conv_type='upsample',
-                    stride=stride,
-                    static=self.static
+                    stride=stride
                 )
             )
 
@@ -230,7 +228,6 @@ class ConvBlock(nn.Module):
                  padding : int = 1,
                  activation : Callable[[torch.Tensor], torch.Tensor] = nn.ReLU,
                  conv_type : str = 'downsample',
-                 static : bool = False,
                  output_padding : int = 0,
                  norm = None,
                  dropout = None) -> None:
@@ -245,6 +242,7 @@ class ConvBlock(nn.Module):
                 nn.Conv2d(input_dim, 
                           output_dim, 
                           kernel_size=kernel_size, 
+                          stride=stride
                           padding=padding),
                 activation(),
                 nn.MaxPool2d(2)
@@ -274,7 +272,6 @@ class ConvBlock(nn.Module):
         return x
 
 
-
 if __name__ == "__main__":
     MLP_args ={
         'input_dim' : [28*28] * 12,
@@ -291,7 +288,7 @@ if __name__ == "__main__":
 
     CNN_args ={
         'input_channels' : [1] * 12,
-        'H' : [28] * 12,
+        'Height' : [28] * 12,
         "n_layers_encoder" : [2,2,2,1,1,1,2,2,2,4,4,4,],
         'encoder_width' : [4,16,64] + [16]*9,
         'n_layers_decoder' : [2,2,2,1,2,4,1,2,4,1,2,4,],
