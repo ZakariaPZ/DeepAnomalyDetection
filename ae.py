@@ -111,28 +111,35 @@ class DenseAE(pl.LightningModule):
 
     def _shared_eval_step(self, batch, batch_idx):
         x, y = batch
-        # get indexes of class we train on
-        normal_class_idx = torch.where(y == self.normal_class)[0]
+        # # get indexes of class we train on
+        # normal_class_idx = torch.where(y == self.normal_class)[0]
                 
-        x_hat = self(x)
-        # get loss of model only for the class that we trained on
-        loss = F.mse_loss(
-            x_hat[normal_class_idx],
-            x[normal_class_idx]\
-                .reshape(normal_class_idx.shape[0], -1)
-        )
-        # get reconstruction error for every example
-        all_mse = F.mse_loss(x_hat, x.reshape(x.shape[0], -1), reduction='none').mean(dim=-1)
+        # x_hat = self(x)
+        # # get loss of model only for the class that we trained on
+        # loss = F.mse_loss(
+        #     x_hat[normal_class_idx],
+        #     x[normal_class_idx]\
+        #         .reshape(normal_class_idx.shape[0], -1)
+        # )
+        # # get reconstruction error for every example
+        # all_mse = F.mse_loss(x_hat, x.reshape(x.shape[0], -1), reduction='none').mean(dim=-1)
 
-        # get classification based on threshold
-        y_hat = torch.where(all_mse > self.threshold, torch.ones_like(y), torch.zeros_like(y))
+        # # get classification based on threshold
+        # y_hat = torch.where(all_mse > self.threshold, torch.ones_like(y), torch.zeros_like(y))
         
-        # get anomaly accuracy
-        acc = accuracy(
-            y_hat,
-            torch.where(y == self.normal_class, torch.zeros_like(y), torch.ones_like(y)),
-            task='binary'
-        )
+        # # get anomaly accuracy
+        # acc = accuracy(
+        #     y_hat,
+        #     torch.where(y == self.normal_class, torch.zeros_like(y), torch.ones_like(y)),
+        #     task='binary'
+        # )
+
+        x_hat = self(x)
+        loss = F.mse_loss(x_hat, x.reshape(x.shape[0], -1))
+
+        all_mse = F.mse_loss(x_hat, x.reshape(x.shape[0], -1), reduction='none').mean(dim=-1)
+        y_hat = torch.where(all_mse > self.threshold, torch.zeros_like(y), torch.ones_like(y))
+        acc = accuracy(y_hat, y, task='binary')
         # TODO: add auroc
         return loss, acc
 

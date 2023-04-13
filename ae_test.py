@@ -3,11 +3,13 @@ from typing import *
 
 import matplotlib.pyplot as plt
 import pytorch_lightning as pl
-from pytorch_lightning.loggers import TensorBoardLogger
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ae import DenseAE, ConvAE
+from ae import ConvAE, DenseAE
+from pytorch_lightning.loggers import TensorBoardLogger
+from src.callbacks import NoveltyAUROCCallback
+from src.data import NoveltyDetectionDatamodule
 from torch.utils.data import DataLoader, random_split
 from torchmetrics.functional import confusion_matrix
 from torchvision import transforms
@@ -93,8 +95,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--val_size',
         type=float,
-        default=0.5,
-        help='proportion of the test set to use as the validation set',
+        default=0.2,
+        help='proportion of the train set to use as the validation set',
     )
     parser.add_argument(
         '--lr',
@@ -190,22 +192,48 @@ if __name__ == '__main__':
         )
 
     # TODO: add handling for CIFAR10
+    dm = NoveltyDetectionDatamodule(
+        dataset="torchvision.datasets.MNIST",
+        dataset_args=dict(
+            root="data",
+            train=True,
+            download=True,
+            transform=transforms.ToTensor(),  # TODO: add transforms to the base datamodule to be configurable from cli
+        ),
+        test_dataset="torchvision.datasets.MNIST",
+        test_dataset_args=dict(
+            root="data",
+            train=False,
+            download=True,
+            transform=transforms.ToTensor(),  # TODO: add transforms to the base datamodule to be configurable from cli
+        ),
+        val_size = args.val_size,
+        normal_targets=[args.normal_class],
+        batch_size=args.batch_size,
+        num_workers=0,
+        pin_memory=True,
+    )
 
-    train = MNIST('./data', train=True, download=True, transform=transforms.ToTensor())
-    # only use the digit we want
-    train_idx = torch.where(train.targets == args.normal_class)[0]
-    train.targets = train.targets[train_idx]
-    train.data = train.data[train_idx]
-    train_loader = DataLoader(train, batch_size=args.batch_size, num_workers=2, shuffle=True)
-    
+    dm.setup('fit')
+    dm.setup('test')
+     
 
-    test = MNIST('./data', train=False, download=True, transform=transforms.ToTensor())
-    # split the dataset into train and val
-    n_val = int(len(test) * args.val_size)
-    n_test = len(test) - n_val
-    test, val = random_split(test, [n_test, n_val])
-    test_loader = DataLoader(test, batch_size=args.batch_size, num_workers=2, shuffle=False)
-    val_loader = DataLoader(val, batch_size=args.batch_size, num_workers=2, shuffle=False)
+    ##### OLD DATA LOADING #####
+    # train = MNIST('./data', train=True, download=True, transform=transforms.ToTensor())
+    # # only use the digit we want
+    # train_idx = torch.where(train.targets == args.normal_class)[0]
+    # train.targets = train.targets[train_idx]
+    # train.data = train.data[train_idx]
+    # train_loader = DataLoader(train, batch_size=args.batch_size, num_workers=2, shuffle=True)
+    # 
+    # test = MNIST('./data', train=False, download=True, transform=transforms.ToTensor())
+    # # split the dataset into train and val
+    # n_val = int(len(test) * args.val_size)
+    # n_test = len(test) - n_val
+    # test, val = random_split(test, [n_test, n_val])
+    # test_loader = DataLoader(test, batch_size=args.batch_size, num_workers=2, shuffle=False)
+    # val_loader = DataLoader(val, batch_size=args.batch_size, num_workers=2, shuffle=False)
+    ##### END OLD DATA LOADING #####
 
     trainer = pl.Trainer(
         accelerator='auto',
@@ -216,10 +244,12 @@ if __name__ == '__main__':
         log_every_n_steps=10,
         enable_progress_bar=False,
         logger=TensorBoardLogger('lightning_logs', name=args.type, version=args.version),
+        # callbacks=[NoveltyAUROCCallback()],
     )
 
-    trainer.fit(model, train_loader, val_dataloaders=val_loader)
-    trainer.test(model, dataloaders=test_loader)
+    trainer.fit(model, dm.train_dataloader(), val_dataloaders=dm.val_dataloader())
+    trainer.test(model, dataloaders=dm.test_dataloader())
+
     # visulize a batch item and its reconstruction
     # batch = next(iter(test_loader))
     # model.eval()
