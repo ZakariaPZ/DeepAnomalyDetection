@@ -8,6 +8,8 @@ from torchmetrics.functional import accuracy, confusion_matrix, auroc
 from torchvision import transforms, datasets
 from torch.utils import data
 
+cuda_avail = torch.cuda.is_available()
+device = torch.device("cuda" if cuda_avail else "cpu")
 
 class DenseAE(pl.LightningModule):
     def __init__(self,
@@ -288,7 +290,7 @@ class ConvAE(pl.LightningModule):
         self.threshold = F.mse_loss(x_hat, x, reduction = 'mean')
         self.log('threshold', self.threshold)
         return loss
-    
+
     def validation_step(self, batch, batch_idx):
         loss, acc = self._shared_eval_step(batch, batch_idx)
         metrics = {"val_acc": acc, "val_loss": loss}
@@ -317,7 +319,7 @@ class ConvAE(pl.LightningModule):
 
         # # get classification based on threshold
         # y_hat = torch.where(all_mse > self.threshold, torch.ones_like(y), torch.zeros_like(y))
-        
+
         # # get anomaly accuracy
         # acc = accuracy(
         #     y_hat,
@@ -342,6 +344,53 @@ class ConvAE(pl.LightningModule):
         z = self.encoder(input)
         x_hat = self.decoder(z)
         return x_hat
+
+class ConvVAE(ConvAE):
+    def __init__(self, 
+                   *args,
+                    **kwargs):
+        super().__init__(*args, **kwargs)
+    
+        num_channels = self.encoder_width
+        dims = int(self.height*(1/self.pool_kernel)**(self.n_layers_encoder))
+
+        self.mu = nn.Linear(dims * dims * num_channels, self.latent_dim)
+        self.log_variance = nn.Linear(dims * dims * num_channels, self.latent_dim)
+        self.VAE_loss = VAELoss()
+
+    def sample_noise(self):
+        return torch.randn(self.latent_dim)
+    
+    def forward(self, x):
+        x = self.encoder(x)
+        mu = self.mu(x)
+        log_variance = self.log_variance(x)
+        epsilon = self.sample_noise().to(device)
+        z = mu + torch.exp(0.5*log_variance) * epsilon
+        x = self.decoder(z)
+        return x, mu, log_variance
+    
+    def training_step(self, batch, batch_idx):
+        x, y = batch
+        x_hat = self(x)
+        loss = self.VAE_loss(x_hat, x)
+        self.log('train_loss', loss)
+        self.threshold = self.VAE_Loss.reconstruction_loss(x_hat, x)
+        self.log('threshold', self.threshold)
+        return loss
+
+    def _shared_eval_step(self, batch, batch_idx):
+        x, y = batch
+
+        x_hat = self(x)
+        loss = (x_hat, x.reshape(x.shape[0], -1))
+
+        all_mse = self.VAE_Loss.reconstruction_loss(x_hat, x.reshape(x.shape[0], -1), reduction='none').mean(dim=-1)
+        y_hat = torch.where(all_mse > self.threshold, torch.zeros_like(y), torch.ones_like(y))
+        acc = accuracy(y_hat, y, task='binary')
+
+        # TODO: add auroc
+        return loss, acc
 
 
 class VAELoss(nn.Module):
@@ -387,7 +436,7 @@ class ConvBlock(nn.Module):
                 nn.Conv2d(input_dim, 
                           output_dim, 
                           kernel_size=kernel_size, 
-                          stride=stride,
+                          stride=1,
                           padding=padding),
                 activation(),
                 nn.MaxPool2d(pool_kernel) 
@@ -449,13 +498,13 @@ if __name__ == "__main__":
         'pool_kernel' : [2],
     }
 
-    for i in range(12):
-        args_ = {k: v[i] for k, v in MLP_args.items()}
-        print(args_)
-        model = DenseAE(**args_)
-        input = torch.randn(2, args_['input_dim'])
-        output = model(input)
-        assert output.shape == input.shape, "Autoencoder output shape does not match input shape"
+    # for i in range(12):
+    #     args_ = {k: v[i] for k, v in MLP_args.items()}
+    #     print(args_)
+    #     model = DenseAE(**args_)
+    #     input = torch.randn(2, args_['input_dim'])
+    #     output = model(input)
+    #     assert output.shape == input.shape, "Autoencoder output shape does not match input shape"
 
     args_ = {k: v[0] for k, v in CNN_args.items()}
     print(args_)
