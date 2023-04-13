@@ -234,7 +234,8 @@ class ConvAE(pl.LightningModule):
                     in_channels,
                     out_channels,
                     norm=norm, dropout=dropout,
-                    conv_type='downsample'
+                    conv_type='downsample',
+                    pool_kernel=self.pool_kernel
                 )
             )
      
@@ -322,15 +323,6 @@ class ConvAE(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
-    
-    # def train_dataloader(self):
-    #     mnist_data = datasets.MNIST(root='./data', train=True, download=True, 
-    #                                 transform=transforms.ToTensor())
-
-    #     batch_size = 64
-    #     dataloader = data.DataLoader(mnist_data, batch_size=batch_size, shuffle=True)
-
-    #     return dataloader
 
     def forward(self, input):
         z = self.encoder(input)
@@ -341,6 +333,7 @@ class ConvBlock(nn.Module):
     def __init__(self, 
                  input_dim : int,
                  output_dim : int,
+                 pool_kernel : int = 2,
                  kernel_size : int = 3,
                  stride : int = 1,
                  padding : int = 1,
@@ -363,16 +356,17 @@ class ConvBlock(nn.Module):
                           stride=stride,
                           padding=padding),
                 activation(),
-                nn.MaxPool2d(2) # TODO: maybe change to variable
+                nn.MaxPool2d(pool_kernel) 
             )
 
         else:
+            upsample_stride = pool_kernel
             self.conv = nn.Sequential(
                 nn.ConvTranspose2d(input_dim,
                                 output_dim,
                                 kernel_size=kernel_size,
                                 padding=padding,
-                                stride=2, # TODO: maybe change to variable
+                                stride=upsample_stride, 
                                 output_padding=output_padding),
                 activation()
             )
