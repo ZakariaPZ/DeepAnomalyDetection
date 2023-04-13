@@ -342,7 +342,27 @@ class ConvAE(pl.LightningModule):
         z = self.encoder(input)
         x_hat = self.decoder(z)
         return x_hat
-    
+
+
+class VAELoss(nn.Module):
+    def __init__(self):
+        super(VAELoss, self).__init__()
+        self.alpha = 1100
+
+    def kl_loss(self, mu, log_variance):
+        loss = -0.5 * torch.sum(1 + log_variance - torch.square(mu) - torch.exp(log_variance), dim=1)
+        return loss
+
+    def reconstruction_loss(self, y_true, y_pred):
+        loss = torch.mean(torch.square(y_true - y_pred), dim=(1, 2, 3))
+        return loss
+
+    def forward(self, predictions, targets, mu, log_variance):
+        kld = self.kl_loss(mu, log_variance)
+        reconstruction = self.reconstruction_loss(targets, predictions)
+        return torch.sum(kld + self.alpha*reconstruction)
+
+
 class ConvBlock(nn.Module):
     def __init__(self, 
                  input_dim : int,
