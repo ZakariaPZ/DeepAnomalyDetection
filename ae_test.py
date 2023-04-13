@@ -162,7 +162,6 @@ if __name__ == '__main__':
             scaling_factor = args.scaling_factor,
             norm = args.norm,
             dropout = args.dropout,
-            normal_class=args.normal_class,
             lr=args.lr,
         )
     else:
@@ -174,7 +173,6 @@ if __name__ == '__main__':
             height = 32
 
         model = ConvAE(
-            normal_class=args.normal_class,
             input_channels= input_channels,
             height = height,
             latent_dim = args.latent_dim,

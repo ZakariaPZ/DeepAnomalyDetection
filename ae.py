@@ -17,7 +17,6 @@ class DenseAE(pl.LightningModule):
                  n_layers_decoder: int,
                  encoder_width: int,
                  decoder_width: int,
-                 normal_class: int,
                  scaling_factor: int = 1/2.,
                  norm: Union[str, None] = None,
                  dropout: Union[float, None] = None,
@@ -26,7 +25,6 @@ class DenseAE(pl.LightningModule):
                 ):
         super().__init__()
 
-        self.normal_class = normal_class
         self.threshold = 0
 
         self.input_dim = input_dim
@@ -190,7 +188,6 @@ class Reshape(nn.Module):
 
 class ConvAE(pl.LightningModule):
     def __init__(self,
-                 normal_class: int,
                  input_channels: int,
                  height : int,
                  latent_dim: int,
@@ -225,7 +222,6 @@ class ConvAE(pl.LightningModule):
         self.lr = lr
         
         self.threshold = 0
-        self.normal_class = normal_class
 
         # check that the scaling factor is valid
         if not (0 < scaling_factor < 1):
@@ -307,27 +303,34 @@ class ConvAE(pl.LightningModule):
 
     def _shared_eval_step(self, batch, batch_idx):
         x, y = batch
-        # get indexes of class we train on
-        normal_class_idx = torch.where(y == self.normal_class)[0]
+        # # get indexes of class we train on
+        # normal_class_idx = torch.where(y == self.normal_class)[0]
  
-        x_hat = self(x)
-        # get loss of model only for the class that we trained on
-        loss = F.mse_loss(
-            x_hat[normal_class_idx],
-            x[normal_class_idx]
-        )
-        # get reconstruction error for every example
-        all_mse = F.mse_loss(x_hat.reshape(x.shape[0], -1), x.reshape(x.shape[0], -1), reduction='none').mean(dim=-1)
+        # x_hat = self(x)
+        # # get loss of model only for the class that we trained on
+        # loss = F.mse_loss(
+        #     x_hat[normal_class_idx],
+        #     x[normal_class_idx]
+        # )
+        # # get reconstruction error for every example
+        # all_mse = F.mse_loss(x_hat.reshape(x.shape[0], -1), x.reshape(x.shape[0], -1), reduction='none').mean(dim=-1)
 
-        # get classification based on threshold
-        y_hat = torch.where(all_mse > self.threshold, torch.ones_like(y), torch.zeros_like(y))
+        # # get classification based on threshold
+        # y_hat = torch.where(all_mse > self.threshold, torch.ones_like(y), torch.zeros_like(y))
         
-        # get anomaly accuracy
-        acc = accuracy(
-            y_hat,
-            torch.where(y == self.normal_class, torch.zeros_like(y), torch.ones_like(y)),
-            task='binary'
-        )
+        # # get anomaly accuracy
+        # acc = accuracy(
+        #     y_hat,
+        #     torch.where(y == self.normal_class, torch.zeros_like(y), torch.ones_like(y)),
+        #     task='binary'
+        # )
+        x_hat = self(x)
+        loss = F.mse_loss(x_hat, x.reshape(x.shape[0], -1))
+
+        all_mse = F.mse_loss(x_hat, x.reshape(x.shape[0], -1), reduction='none').mean(dim=-1)
+        y_hat = torch.where(all_mse > self.threshold, torch.zeros_like(y), torch.ones_like(y))
+        acc = accuracy(y_hat, y, task='binary')
+
         # TODO: add auroc
         return loss, acc
 
@@ -429,7 +432,7 @@ if __name__ == "__main__":
     for i in range(12):
         args_ = {k: v[i] for k, v in MLP_args.items()}
         print(args_)
-        model = DenseAE(**args_, normal_class=0)
+        model = DenseAE(**args_)
         input = torch.randn(2, args_['input_dim'])
         output = model(input)
         assert output.shape == input.shape, "Autoencoder output shape does not match input shape"
