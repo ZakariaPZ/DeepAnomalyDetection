@@ -7,7 +7,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ae import DenseAE
+from ae import DenseAE, ConvAE
 from torch.utils.data import DataLoader, random_split
 from torchmetrics.functional import confusion_matrix
 from torchvision import transforms
@@ -110,7 +110,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--epochs',
         type=int,
-        default=10,
+        default=20,
     )
     parser.add_argument(
         '--checkpoint',
@@ -120,6 +120,11 @@ if __name__ == '__main__':
         '--version',
         type=int,
         help='version of the model to save for TensorBoard',
+    )
+    parser.add_argument(
+        '--kernel_size',
+        type=int,
+        default=3,
     )
 
     args = parser.parse_args()
@@ -159,7 +164,30 @@ if __name__ == '__main__':
             lr=args.lr,
         )
     else:
-        raise NotImplementedError
+        if args.dataset == 'MNIST':
+            input_channels = 1
+            height = 28
+        else:
+            input_channels = 3
+            height = 32
+
+        model = ConvAE(
+            normal_class=args.normal_class,
+            input_channels= input_channels,
+            height = height,
+            latent_dim = args.latent_dim,
+            n_layers_encoder = args.n_layers_encoder,
+            n_layers_decoder = args.n_layers_decoder,
+            encoder_width = args.encoder_width,
+            decoder_width = args.decoder_width,
+            scaling_factor = args.scaling_factor,
+            norm = args.norm,
+            dropout = args.dropout,
+            padding = 1,
+            kernel_size=args.kernel_size,
+            pool_kernel=2,
+            lr=args.lr,
+        )
 
     # TODO: add handling for CIFAR10
 
