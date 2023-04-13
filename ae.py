@@ -4,7 +4,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchmetrics.functional import accuracy, confusion_matrix
+from torchmetrics.functional import accuracy, confusion_matrix, auroc
 from torchvision import transforms, datasets
 from torch.utils import data
 
@@ -99,21 +99,15 @@ class DenseAE(pl.LightningModule):
     
     def validation_step(self, batch, batch_idx):
         loss, acc = self._shared_eval_step(batch, batch_idx)
-        # loss = self._shared_eval_step(batch, batch_idx)
         metrics = {"val_acc": acc, "val_loss": loss}
         self.log_dict(metrics, prog_bar=True)
-        # self.log('val_loss', loss, prog_bar=True)
         return metrics
-        # return loss
 
     def test_step(self, batch, batch_idx):
         loss, acc = self._shared_eval_step(batch, batch_idx)
-        # loss = self._shared_eval_step(batch, batch_idx)
         metrics = {"test_acc": acc, "test_loss": loss}
         self.log_dict(metrics, prog_bar=True)
-        # self.log('test_loss', loss, prog_bar=True)
         return metrics
-        # return loss
 
     def _shared_eval_step(self, batch, batch_idx):
         x, y = batch
@@ -139,9 +133,8 @@ class DenseAE(pl.LightningModule):
             torch.where(y == self.normal_class, torch.zeros_like(y), torch.ones_like(y)),
             task='binary'
         )
-
+        # TODO: add auroc
         return loss, acc
-        # return loss
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
