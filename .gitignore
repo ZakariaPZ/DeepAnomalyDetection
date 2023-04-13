@@ -131,3 +131,5 @@ dmypy.json
 # data files
 data/
 lightning_logs/
+slurm*
+exp_results/
