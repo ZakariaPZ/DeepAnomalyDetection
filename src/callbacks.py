@@ -1,6 +1,6 @@
 import typing as th
 import lightning_toolbox
-import lightning.pytorch as pl
+import pytorch_lightning as pl
 import torchmetrics
 import dypy as dy
 import torch
@@ -27,8 +27,8 @@ class NoveltyAUROCCallback(pl.Callback):
         self.objective: lightning_toolbox.Objective = None  # type: ignore # will be set in setup
 
         # metrics
-        self.val_auroc = torchmetrics.AUROC(num_classes=2, pos_label=1)
-        self.test_auroc = torchmetrics.AUROC(num_classes=2, pos_label=1)
+        self.val_auroc = torchmetrics.AUROC(num_classes=2, pos_label=1, task = 'binary')
+        self.test_auroc = torchmetrics.AUROC(num_classes=2, pos_label=1, task = 'binary')
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         super().setup(trainer, pl_module, stage)
