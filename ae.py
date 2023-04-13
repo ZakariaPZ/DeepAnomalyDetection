@@ -261,13 +261,17 @@ class ConvAE(pl.LightningModule):
             in_channels = num_channels if i == 0 else int(decoder_width * scaling_factor ** (i - 1))
             out_channels = input_channels if i == self.n_layers_decoder - 1 else int(decoder_width * scaling_factor ** (i))
 
+            activation = nn.Sigmoid if i == self.n_layers_decoder - 1 else nn.ReLU
+            norm = None if i == self.n_layers_decoder - 1 else self.norm
+
             blocks_dec.append(
                 self.block(
                     in_channels,
                     out_channels,
                     norm=norm, dropout=dropout, output_padding=output_padding,
                     conv_type='upsample',
-                    stride=stride
+                    stride=stride,
+                    activation=activation
                 )
             )
 
