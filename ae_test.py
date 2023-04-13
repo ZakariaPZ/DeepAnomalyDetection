@@ -53,7 +53,7 @@ if __name__ == '__main__':
         '--encoder_width',
         type=int,
         default=784,
-        help='width of the first encoder layer after the input layer',
+        help='width of the first encoder layer after the input layer (in neurons for dense or num channels for CNN)',
     )
     parser.add_argument(
         '--decoder_width',
