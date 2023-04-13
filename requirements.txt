@@ -1,0 +1,5 @@
+lightning-toolbox
+lightning
+torch
+torchvision
+torchmetrics
