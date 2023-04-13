@@ -138,6 +138,39 @@ class DenseAE(pl.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
+
+
+class MLPBlock(nn.Module):
+    def __init__(self,
+                 input_dim: int,
+                 output_dim: int,
+                 activation: Callable[[torch.Tensor], torch.Tensor] = F.relu,
+                 norm: Union[str, None] = None,
+                 dropout: Union[float, None] = None
+                ):
+        super().__init__()
+        self.linear = nn.Linear(input_dim, output_dim)
+        self.activation = activation
+
+        if norm == 'batch':
+            self.norm = nn.BatchNorm1d(output_dim)
+        elif norm == 'layer':
+            self.norm = nn.LayerNorm(output_dim)
+        elif norm is None:
+            self.norm = None
+        else:
+            raise ValueError(f'Invalid norm: {norm}')
+        
+        self.dropout = nn.Dropout(dropout) if dropout else None
+
+    def forward(self, input):
+        output = self.linear(input)
+        output = self.activation(output)
+        if self.norm:
+            output = self.norm(output)
+        if self.dropout:
+            output = self.dropout(output)
+        return output
     
 
 class Reshape(nn.Module):
@@ -150,6 +183,7 @@ class Reshape(nn.Module):
 
 class ConvAE(pl.LightningModule):
     def __init__(self,
+                 normal_class: int,
                  input_channels: int,
                  height : int,
                  latent_dim: int,
@@ -162,7 +196,8 @@ class ConvAE(pl.LightningModule):
                  dropout: Union[float, None] = None,
                  padding : int = None,
                  kernel_size : int = None,
-                 pool_kernel : int = None
+                 pool_kernel : int = None,
+                 lr: float = 1e-3,
                 ):
         super().__init__()
 
@@ -180,6 +215,10 @@ class ConvAE(pl.LightningModule):
         self.pool_kernel = int(pool_kernel) # convert kernel to int if float is passed
         self.block = ConvBlock
         self.height = height
+        self.lr = lr
+        
+        self.threshold = 0
+        self.normal_class = normal_class
 
         # check that the scaling factor is valid
         if not (0 < scaling_factor < 1):
@@ -234,25 +273,64 @@ class ConvAE(pl.LightningModule):
         self.decoder = nn.Sequential(*blocks_dec)
 
     def training_step(self, batch, batch_idx):
-
         x, y = batch
         x_hat = self(x)
-        loss = nn.functional.mse_loss(x_hat, x)
-      
+        loss = F.mse_loss(x_hat, x)
+        self.log('train_loss', loss)
+        self.threshold = F.mse_loss(x_hat, x, reduction = 'mean')
+        self.log('threshold', self.threshold)
         return loss
+    
+    def validation_step(self, batch, batch_idx):
+        loss, acc = self._shared_eval_step(batch, batch_idx)
+        metrics = {"val_acc": acc, "val_loss": loss}
+        self.log_dict(metrics, prog_bar=True)
+        return metrics
+
+    def test_step(self, batch, batch_idx):
+        loss, acc = self._shared_eval_step(batch, batch_idx)
+        metrics = {"test_acc": acc, "test_loss": loss}
+        self.log_dict(metrics, prog_bar=True)
+        return metrics
+
+    def _shared_eval_step(self, batch, batch_idx):
+        x, y = batch
+        # get indexes of class we train on
+        normal_class_idx = torch.where(y == self.normal_class)[0]
+ 
+        x_hat = self(x)
+        # get loss of model only for the class that we trained on
+        loss = F.mse_loss(
+            x_hat[normal_class_idx],
+            x[normal_class_idx]
+        )
+        # get reconstruction error for every example
+        all_mse = F.mse_loss(x_hat.reshape(x.shape[0], -1), x.reshape(x.shape[0], -1), reduction='none').mean(dim=-1)
+
+        # get classification based on threshold
+        y_hat = torch.where(all_mse > self.threshold, torch.ones_like(y), torch.zeros_like(y))
+        
+        # get anomaly accuracy
+        acc = accuracy(
+            y_hat,
+            torch.where(y == self.normal_class, torch.zeros_like(y), torch.ones_like(y)),
+            task='binary'
+        )
+        # TODO: add auroc
+        return loss, acc
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
     
-    def train_dataloader(self):
-        mnist_data = datasets.MNIST(root='./data', train=True, download=True, 
-                                    transform=transforms.ToTensor())
+    # def train_dataloader(self):
+    #     mnist_data = datasets.MNIST(root='./data', train=True, download=True, 
+    #                                 transform=transforms.ToTensor())
 
-        batch_size = 64
-        dataloader = data.DataLoader(mnist_data, batch_size=batch_size, shuffle=True)
+    #     batch_size = 64
+    #     dataloader = data.DataLoader(mnist_data, batch_size=batch_size, shuffle=True)
 
-        return dataloader
+    #     return dataloader
 
     def forward(self, input):
         z = self.encoder(input)
@@ -312,38 +390,7 @@ class ConvBlock(nn.Module):
         return x
 
 
-class MLPBlock(nn.Module):
-    def __init__(self,
-                 input_dim: int,
-                 output_dim: int,
-                 activation: Callable[[torch.Tensor], torch.Tensor] = F.relu,
-                 norm: Union[str, None] = None,
-                 dropout: Union[float, None] = None
-                ):
-        super().__init__()
-        self.linear = nn.Linear(input_dim, output_dim)
-        self.activation = activation
-
-        if norm == 'batch':
-            self.norm = nn.BatchNorm1d(output_dim)
-        elif norm == 'layer':
-            self.norm = nn.LayerNorm(output_dim)
-        elif norm is None:
-            self.norm = None
-        else:
-            raise ValueError(f'Invalid norm: {norm}')
-        
-        self.dropout = nn.Dropout(dropout) if dropout else None
-
-    def forward(self, input):
-        output = self.linear(input)
-        output = self.activation(output)
-        if self.norm:
-            output = self.norm(output)
-        if self.dropout:
-            output = self.dropout(output)
-        return output
-    
+   
 
 if __name__ == "__main__":
     MLP_args ={
