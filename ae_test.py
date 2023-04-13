@@ -3,6 +3,7 @@ from typing import *
 
 import matplotlib.pyplot as plt
 import pytorch_lightning as pl
+from pytorch_lightning.loggers import TensorBoardLogger
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -86,7 +87,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--batch_size',
         type=int,
-        default=256,
+        default=256 if torch.cuda.is_available() else 64,
         help='batch size to use for training',
     )
     parser.add_argument(
@@ -113,8 +114,12 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--checkpoint',
-        type=bool,
         action='store_true',
+    )
+    parser.add_argument(
+        '--version',
+        type=int,
+        help='version of the model to save for TensorBoard',
     )
 
     args = parser.parse_args()
@@ -180,64 +185,66 @@ if __name__ == '__main__':
         max_epochs=args.epochs,
         check_val_every_n_epoch=1,
         enable_checkpointing=args.checkpoint,
-        log_every_n_steps=10
+        log_every_n_steps=10,
+        enable_progress_bar=False,
+        logger=TensorBoardLogger('lightning_logs', name=args.type, version=args.version),
     )
 
     trainer.fit(model, train_loader, val_dataloaders=val_loader)
     trainer.test(model, dataloaders=test_loader)
     # visulize a batch item and its reconstruction
-    batch = next(iter(test_loader))
-    model.eval()
+    # batch = next(iter(test_loader))
+    # model.eval()
 
-    idx = torch.where(batch[1] == args.normal_class)[0][0]
+    # idx = torch.where(batch[1] == args.normal_class)[0][0]
 
-    plt.subplot(121)
-    plt.imshow(batch[0][idx].squeeze(), cmap='gray')
-    plt.title(f'Original: {batch[1][idx]}')
+    # plt.subplot(121)
+    # plt.imshow(batch[0][idx].squeeze(), cmap='gray')
+    # plt.title(f'Original: {batch[1][idx]}')
 
-    plt.subplot(122)
-    plt.imshow(model(batch[0][idx]).squeeze().reshape(batch[0][0].shape[1], -1).detach().numpy(), cmap='gray')
-    plt.title(f'Reconstruction: {batch[1][idx]}')
-    plt.savefig(f'reconstruction{args.normal_class}.png', bbox_inches='tight')
-    plt.show()
+    # plt.subplot(122)
+    # plt.imshow(model(batch[0][idx]).squeeze().reshape(batch[0][0].shape[1], -1).detach().numpy(), cmap='gray')
+    # plt.title(f'Reconstruction: {batch[1][idx]}')
+    # plt.savefig(f'reconstruction{args.normal_class}.png', bbox_inches='tight')
+    # plt.show()
 
-    idx = torch.where(batch[1] == args.eval_class)[0][0]
+    # idx = torch.where(batch[1] == args.eval_class)[0][0]
 
-    plt.subplot(121)
-    plt.imshow(batch[0][idx].squeeze(), cmap='gray')
-    plt.title(f'Original: {batch[1][idx]}')
+    # plt.subplot(121)
+    # plt.imshow(batch[0][idx].squeeze(), cmap='gray')
+    # plt.title(f'Original: {batch[1][idx]}')
 
-    plt.subplot(122)
-    plt.imshow(model(batch[0][idx]).squeeze().reshape(batch[0][0].shape[1], -1).detach().numpy(), cmap='gray')
-    plt.title(f'Reconstruction: {batch[1][idx]}')
-    plt.savefig(f'reconstruction{args.eval_class}.png', bbox_inches='tight')
-    plt.show()
+    # plt.subplot(122)
+    # plt.imshow(model(batch[0][idx]).squeeze().reshape(batch[0][0].shape[1], -1).detach().numpy(), cmap='gray')
+    # plt.title(f'Reconstruction: {batch[1][idx]}')
+    # plt.savefig(f'reconstruction{args.eval_class}.png', bbox_inches='tight')
+    # plt.show()
 
-    # for each batch in the test set, calculate the confusion matrix
-    for idx, batch in enumerate(test_loader):
-        x, y = batch
-        # get indexes of class we train on
-        normal_class_idx = torch.where(y == model.normal_class)[0]
+    # # for each batch in the test set, calculate the confusion matrix
+    # for idx, batch in enumerate(test_loader):
+    #     x, y = batch
+    #     # get indexes of class we train on
+    #     normal_class_idx = torch.where(y == model.normal_class)[0]
                 
-        x_hat = model(x)
+    #     x_hat = model(x)
 
-        # get reconstruction error for every example
-        all_mse = F.mse_loss(x_hat, x.reshape(x.shape[0], -1), reduction='none').mean(dim=-1).to(x.device)
+    #     # get reconstruction error for every example
+    #     all_mse = F.mse_loss(x_hat, x.reshape(x.shape[0], -1), reduction='none').mean(dim=-1).to(x.device)
 
-        # get classification based on threshold
-        y_hat = torch.where(all_mse > model.threshold.to(x.device), torch.ones_like(y, device=x.device), torch.zeros_like(y, device=x.device))
+    #     # get classification based on threshold
+    #     y_hat = torch.where(all_mse > model.threshold.to(x.device), torch.ones_like(y, device=x.device), torch.zeros_like(y, device=x.device))
         
-        # get anomaly accuracy
-        conf = confusion_matrix(
-            y_hat,
-            y,
-            task='multiclass',
-            num_classes=10,
-        )
+    #     # get anomaly accuracy
+    #     conf = confusion_matrix(
+    #         y_hat,
+    #         y,
+    #         task='multiclass',
+    #         num_classes=10,
+    #     )
 
-        if idx == 0:
-            confusion = conf
-        else:
-            confusion += conf
+    #     if idx == 0:
+    #         confusion = conf
+    #     else:
+    #         confusion += conf
         
-    print(confusion)
+    # print(confusion)
