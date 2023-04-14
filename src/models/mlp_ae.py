@@ -15,6 +15,7 @@ class MLPAutoEncoder(torch.nn.Sequential):
         scaling_factor: float = 0.5,
         encoder_args: th.Optional[dict] = None,  # overrides args for encoder
         decoder_args: th.Optional[dict] = None,  # overrides args for decoder
+        vae: bool = False,
         **args: th.Optional[dict],  # see LazyMLP for args
     ):
         super().__init__()
@@ -24,6 +25,8 @@ class MLPAutoEncoder(torch.nn.Sequential):
 
         self.input_shape = input_shape if isinstance(input_shape, tuple) else tuple(input_shape)
         self.scaling_factor, self.latent_dim = scaling_factor, latent_dim
+
+        self.vae = vae  # if true, do reparameterization trick
 
         # check that the scaling factor is valid
         if not (0 < scaling_factor < 1):
@@ -57,7 +60,21 @@ class MLPAutoEncoder(torch.nn.Sequential):
             **decoder_args,
         )
 
-    def forward(self, x):
-        x = self.encoder(x)
+    def forward(
+        self,
+        inputs: th.Optional[torch.Tensor] = None,
+        latent: th.Optional[torch.Tensor] = None,
+        reparameterize: th.Optional[bool] = None,
+    ):
+        assert inputs is not None or latent is not None, "Must provide either inputs or latent"
+        x = self.encoder(inputs) if latent is None else latent
+
+        reparameterize = reparameterize if reparameterize is not None else self.vae
+        if reparameterize:
+            # split the latent vector into mean and log variance
+            mu, log_variance = x.chunk(2, dim=1)
+            # sample from the latent space
+            x = mu + torch.exp(log_variance / 2) * torch.randn_like(mu)
+        
         x = self.decoder(x)
         return x.view(-1, *self.input_shape)

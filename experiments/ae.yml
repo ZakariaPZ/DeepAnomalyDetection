@@ -8,6 +8,9 @@ init_args:
   model_args:
     # ------------------------
     # architecture capacity
+    vae: true # whether to use a VAE or not
+    # ------------------------
+    # architecture capacity
     input_shape: [1, 28, 28]
     latent_dim: 32
     encoder_depth: 2
@@ -42,5 +45,10 @@ init_args:
 
   # --------------------------------
   objective_args:
-    mse: >
-      lambda batch, training_module: torch.nn.functional.mse_loss(training_module(batch[0]), batch[0], reduction='none').mean(dim=(1, 2, 3))
+    mse:
+      class_path: src.terms.ReconstructionLossTerm
+    # the following term is used for VAE training
+    kld:
+      class_path: src.terms.KLDLossTerm
+      init_args:
+        factor: 1.0 # change the factor
