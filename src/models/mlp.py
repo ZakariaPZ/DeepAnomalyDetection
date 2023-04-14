@@ -16,7 +16,7 @@ class LazyLinearBlock(torch.nn.Module):
         normalization: th.Optional[str] = "torch.nn.BatchNorm1d",
         normalization_args: th.Optional[dict] = None,
         # residual
-        residual: bool = True,
+        residual: bool = False,
         residual_factor: float = 1.0,
         # dropout
         dropout: th.Optional[float] = None,
