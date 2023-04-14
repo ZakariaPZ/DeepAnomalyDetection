@@ -351,6 +351,24 @@ class ConvVAE(ConvAE):
                     **kwargs):
         super().__init__(*args, **kwargs)
     
+        # Encoder
+        blocks = []
+        for i in range(self.n_layers_encoder):
+            in_channels = self.input_dim if i == 0 else int(self.encoder_width * self.scaling_factor ** (self.n_layers_encoder - i))
+            out_channels = int(self.encoder_width * self.scaling_factor ** (self.n_layers_encoder - (i + 1)))
+            blocks.append(
+                self.block(
+                    in_channels,
+                    out_channels,
+                    norm=self.norm, dropout=self.dropout,
+                    conv_type='downsample',
+                    pool_kernel=self.pool_kernel
+                )
+            )
+     
+        blocks.append(nn.Flatten()) # or just make encoder blocks = self.blocks, and pop out linear layer
+        self.encoder = nn.Sequential(*blocks)
+
         num_channels = self.encoder_width
         dims = int(self.height*(1/self.pool_kernel)**(self.n_layers_encoder))
 
@@ -365,7 +383,7 @@ class ConvVAE(ConvAE):
         x = self.encoder(x)
         mu = self.mu(x)
         log_variance = self.log_variance(x)
-        epsilon = self.sample_noise().to(device)
+        epsilon = self.sample_noise()
         z = mu + torch.exp(0.5*log_variance) * epsilon
         x = self.decoder(z)
         return x, mu, log_variance
@@ -391,7 +409,7 @@ class ConvVAE(ConvAE):
 
         # TODO: add auroc
         return loss, acc
-
+    
 
 class VAELoss(nn.Module):
     def __init__(self):
@@ -420,7 +438,7 @@ class ConvBlock(nn.Module):
                  kernel_size : int = 3,
                  stride : int = 1,
                  padding : int = 1,
-                 activation : Callable[[torch.Tensor], torch.Tensor] = nn.ReLU,
+                 activation : Callable[[torch.Tensor], torch.Tensor] = nn.ReLU, # TODO: Change to leakyrelu
                  conv_type : str = 'downsample',
                  output_padding : int = 0,
                  norm = None,
@@ -508,9 +526,9 @@ if __name__ == "__main__":
 
     args_ = {k: v[0] for k, v in CNN_args.items()}
     print(args_)
-    model = ConvAE(**args_)
+    model = ConvVAE(**args_)
     input = torch.randn(2, 1, 28, 28)
     output = model(input)
-    assert output.shape == input.shape, "Autoencoder output shape does not match input shape"
+    assert output[0].shape == input.shape, "Autoencoder output shape does not match input shape"
     print(model)
         
