@@ -10,7 +10,7 @@ class LazyConvBlock(torch.nn.Module):
         out_features: int,
         bias: bool = True,
         kernel_size : int = 3,
-        stride : int = 1,
+        stride : int = 2,
         padding : int = 1,
         output_padding : int = 0,
         # activation
@@ -32,7 +32,7 @@ class LazyConvBlock(torch.nn.Module):
         if conv_type == 'downsample':
 
             self.conv = torch.nn.LazyConv2d(
-                        out_features=out_features, 
+                        out_channels=out_features, 
                         kernel_size=kernel_size, 
                         stride=stride,
                         padding=padding,
@@ -42,11 +42,11 @@ class LazyConvBlock(torch.nn.Module):
                         )
         else:
             self.conv = torch.nn.LazyConvTranspose2d(
-                        out_features=out_features, 
+                        out_channels=out_features, 
                         kernel_size=kernel_size, 
                         stride=stride,
                         padding=padding,
-                        output_padding=output_padding
+                        output_padding=output_padding,
                         bias=bias,
                         device=device,
                         dtype=dtype
