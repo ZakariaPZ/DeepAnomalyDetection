@@ -56,7 +56,7 @@ class NoveltyAUROCCallback(pl.Callback):
         outputs: th.Optional["STEP_OUTPUT"],
         batch: th.Any,
         batch_idx: int,
-        dataloader_idx: int,
+        dataloader_idx: th.Optional[int] = None,
     ) -> None:
         """Called when the validation batch ends."""
         self.step(
