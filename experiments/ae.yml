@@ -1,0 +1,46 @@
+# checkout the implementation of the base TrainingModule class
+# for more details and to see what other arguments you can pass
+# https://github.com/vahidzee/lightning-toolbox/blob/main/lightning_toolbox/training/module.py
+class_path: lightning_toolbox.TrainingModule
+init_args:
+  # the model
+  model_cls: src.models.MLPAutoEncoder
+  model_args:
+    # ------------------------
+    # architecture capacity
+    input_shape: [1, 28, 28]
+    latent_dim: 32
+    encoder_depth: 2
+    decoder_depth: 2
+    encoder_width: 128
+    decoder_width: 128
+    # ------------------------
+    # architectural computational configurations
+    residual: false # whether to use residual connections when possible
+    activation: torch.nn.ReLU
+    bias: true
+    # normalization layer (batchnorm, layernorm, etc.)
+    normalization: torch.nn.BatchNorm1d
+    normalization_args:
+      affine: true
+      track_running_stats: true
+    dropout: 0 # dropout probability
+
+  # --------------------------------
+  # the optimizer
+  optimizer: torch.optim.Adam
+  lr: 0.001
+
+  # scheduler: torch.optim.lr_scheduler.ReduceLROnPlateau
+  # scheduler_args:
+  #   mode: "min"
+  #   factor: 0.75
+  #   patience: 10
+  # scheduler_name: "lr_scheduler"
+  # scheduler_interval: "epoch"
+  # scheduler_monitor: loss/val
+
+  # --------------------------------
+  objective_args:
+    mse: >
+      lambda batch, training_module: torch.nn.functional.mse_loss(training_module(batch[0]), batch[0], reduction='none').mean(dim=(1, 2, 3))
