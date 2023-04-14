@@ -1,6 +1,6 @@
 import typing as th
 import lightning_toolbox
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torchmetrics
 import dypy as dy
 import torch
@@ -14,6 +14,7 @@ class NoveltyAUROCCallback(pl.Callback):
         objective_key: str = "loss",
         objective_cls: th.Optional[th.Type[lightning_toolbox.Objective]] = "lightning_toolbox.Objective",
         objective_args: th.Optional[th.Dict] = None,
+        score_negative: bool = False,  # if True, the score is the negative of the objective
     ):
         super().__init__()
         assert (
@@ -25,10 +26,11 @@ class NoveltyAUROCCallback(pl.Callback):
         self.__objective_key: str = objective_key
         self.__objective_recompute: bool = objective_recompute
         self.objective: lightning_toolbox.Objective = None  # type: ignore # will be set in setup
+        self.score_negative = score_negative
 
         # metrics
-        self.val_auroc = torchmetrics.AUROC(num_classes=2, pos_label=1, task = 'binary')
-        self.test_auroc = torchmetrics.AUROC(num_classes=2, pos_label=1, task = 'binary')
+        self.val_auroc = torchmetrics.AUROC(num_classes=2, pos_label=1, task="binary")
+        self.test_auroc = torchmetrics.AUROC(num_classes=2, pos_label=1, task="binary")
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         super().setup(trainer, pl_module, stage)
@@ -43,13 +45,49 @@ class NoveltyAUROCCallback(pl.Callback):
         else:
             self.objective = dy.get_value(self.__objective_cls)(**self.__objective_args)
 
-    def on_validation_batch_end(self, **kwargs) -> None:
-        """Called when the validation batch ends."""
-        self.step(**kwargs, name="val")
+        # bind metrics to pl_module
+        pl_module.val_auroc = self.val_auroc
+        pl_module.test_auroc = self.test_auroc
 
-    def on_test_batch_end(self, **kwargs) -> None:
+    def on_validation_batch_end(
+        self,
+        trainer: "pl.Trainer",
+        pl_module: "pl.LightningModule",
+        outputs: th.Optional["STEP_OUTPUT"],
+        batch: th.Any,
+        batch_idx: int,
+        dataloader_idx: int,
+    ) -> None:
+        """Called when the validation batch ends."""
+        self.step(
+            batch=batch,
+            pl_module=pl_module,
+            outputs=outputs,
+            batch_idx=batch_idx,
+            dataloader_idx=dataloader_idx,
+            trainer=trainer,
+            name="val",
+        )
+
+    def on_test_batch_end(
+        self,
+        trainer: "pl.Trainer",
+        pl_module: "pl.LightningModule",
+        outputs: th.Optional["STEP_OUTPUT"],
+        batch: th.Any,
+        batch_idx: int,
+        dataloader_idx: int,
+    ) -> None:
         """Called when the test batch ends."""
-        self.step(**kwargs, name="test")
+        self.step(
+            batch=batch,
+            pl_module=pl_module,
+            outputs=outputs,
+            batch_idx=batch_idx,
+            dataloader_idx=dataloader_idx,
+            trainer=trainer,
+            name="test",
+        )
 
     def step(self, batch, pl_module: "pl.LightningModule", name: str = "val", **kwargs):
         is_val = name == "val"
@@ -58,7 +96,7 @@ class NoveltyAUROCCallback(pl.Callback):
         else:
             objective_results = self.objective.results
 
-        scores = objective_results[self.__objective_key]
+        scores = objective_results[self.__objective_key] * (-1 if self.score_negative else 1)
         labels: torch.Tensor = batch[1]
         metric = self.val_auroc if is_val else self.test_auroc
         metric(
