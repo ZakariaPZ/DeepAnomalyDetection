@@ -46,3 +46,9 @@ callbacks:
   - class_path: lightning.pytorch.callbacks.LearningRateMonitor
     init_args:
       logging_interval: epoch
+
+  - class_path: src.callbacks.ReconstructionCallback
+    
+  - class_path: src.callbacks.ConfusionMatrixCallback
+    init_args:
+      num_classes: 2
