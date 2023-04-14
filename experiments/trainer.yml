@@ -21,7 +21,7 @@ check_val_every_n_epoch: 1
 # tracking & debugging
 # track_grad_norm: inf
 # logger is setup while initializing the trainer
-enable_checkpointing: false # for faster training
+enable_checkpointing: true # for faster training
 enable_model_summary: true # for debugging
 enable_progress_bar: false # for faster training
 
@@ -40,7 +40,9 @@ logger:
 # callbacks
 callbacks:
   - class_path: src.callbacks.NoveltyAUROCCallback
-    
+    init_args:
+      score_negative: true # use the negative sign of the objective as normal score
+
   - class_path: lightning.pytorch.callbacks.LearningRateMonitor
     init_args:
       logging_interval: epoch

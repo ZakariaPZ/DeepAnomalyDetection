@@ -2,6 +2,7 @@
 # https://github.com/vahidzee/lightning-toolbox/blob/main/docs/data_module.md
 class_path: src.data.NoveltyDetectionDatamodule
 init_args:
+  # --------------------------------
   # dataset to use (you can replace this with torchvision.dataset.CIFAR10, etc.)
   dataset: torchvision.datasets.MNIST
   dataset_args:
@@ -10,13 +11,7 @@ init_args:
     train: true
     download: true
 
-  test_dataset: torchvision.datasets.MNIST
-  test_dataset_args:
-    # arguments passed to the dataset
-    root: data
-    train: false # use the test split
-    download: true
-
+  # --------------------------------
   # transforms to apply to the dataset
   transforms:
     # since we are dealing with a paired dataset, we need to apply transformations
@@ -31,29 +26,26 @@ init_args:
               mean: [0.1307]
               std: [0.3081]
 
-  val_transforms:
-    - class_path: lightning_toolbox.data.transforms.PairedDataTransform
-      init_args:
-        input_transforms:
-          - torchvision.transforms.ToTensor # converts PIL image to tensor
-          - class_path: torchvision.transforms.Normalize # normalize the image with mean and std
-            init_args:
-              mean: [0.1307]
-              std: [0.3081]
-        target_transforms:
-          - "lambda x: 1-x" # invert the target
-          
-
+  # --------------------------------
   # novelty detection settings
   normal_targets:
     [8]
     # [8] means to only keep the 8s in the dataset during training
     # and 8 will be the positive class, and the rest will be the negative classes
+
+  # --------------------------------
   # validation split
   # validation size (used when no separate `val_dataset` is provided)
-  val_size: 0.1 # 0.1 means 10% the base dataset will be used for validation
+  val_size: 0 # 0.1 means 10% the base dataset will be used for validation
   # if you don't want to use a validation set, set `val_size` and `val_batch_size` to 0
+  val_dataset: torchvision.datasets.MNIST
+  val_dataset_args:
+    # arguments passed to the dataset
+    root: data
+    train: false # use the test split
+    download: true
 
+  # --------------------------------
   # dataloader args
   batch_size: 512 # used for all the phases (train, val, test)
   num_workers: 0 # increase this if you have a lot of CPU cores
