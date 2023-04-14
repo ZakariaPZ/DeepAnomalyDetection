@@ -233,7 +233,7 @@ class ConfusionMatrixCallback(pl.Callback):
         reconstruction_loss = torch.nn.functional.mse_loss(x, pl_module(x), reduction="none").mean(dim=(1, 2, 3))
         # get the predicted class
         y_hat = torch.where(
-            torch.nn.functional.sigmoid(-1 * reconstruction_loss) < pl_module.threshold,
+            torch.sigmoid(-1 * reconstruction_loss) < pl_module.threshold,
             torch.zeros_like(y),
             torch.ones_like(y),
         )
