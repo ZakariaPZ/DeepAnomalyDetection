@@ -199,7 +199,6 @@ class ConvAE(pl.LightningModule):
                  decoder_width: int,
                  scaling_factor: int = 1/2.,
                  norm: Union[str, None] = None,
-                 dropout: Union[float, None] = None,
                  padding : int = None,
                  kernel_size : int = None,
                  pool_kernel : int = None,
@@ -215,7 +214,6 @@ class ConvAE(pl.LightningModule):
         self.decoder_width = decoder_width
         self.scaling_factor = scaling_factor 
         self.norm = norm
-        self.dropout = dropout
         self.padding = padding
         self.kernel_size = kernel_size
         self.pool_kernel = int(pool_kernel) # convert kernel to int if float is passed
@@ -238,7 +236,7 @@ class ConvAE(pl.LightningModule):
                 self.block(
                     in_channels,
                     out_channels,
-                    norm=norm, dropout=dropout,
+                    norm=norm, 
                     conv_type='downsample',
                     pool_kernel=self.pool_kernel
                 )
@@ -273,7 +271,7 @@ class ConvAE(pl.LightningModule):
                 self.block(
                     in_channels,
                     out_channels,
-                    norm=norm, dropout=dropout, output_padding=output_padding,
+                    norm=norm, output_padding=output_padding,
                     conv_type='upsample',
                     stride=stride,
                     activation=activation
@@ -375,18 +373,6 @@ class ConvVAE(ConvAE):
         self.mu = nn.Linear(dims * dims * num_channels, self.latent_dim)
         self.log_variance = nn.Linear(dims * dims * num_channels, self.latent_dim)
         self.VAE_loss = VAELoss()
-
-    def sample_noise(self):
-        return torch.randn(self.latent_dim)
-    
-    def forward(self, x):
-        x = self.encoder(x)
-        mu = self.mu(x)
-        log_variance = self.log_variance(x)
-        epsilon = self.sample_noise()
-        z = mu + torch.exp(0.5*log_variance) * epsilon
-        x = self.decoder(z)
-        return x, mu, log_variance
     
     def training_step(self, batch, batch_idx):
         x, y = batch
@@ -410,6 +396,18 @@ class ConvVAE(ConvAE):
         # TODO: add auroc
         return loss, acc
     
+    def sample_noise(self):
+        return torch.randn(self.latent_dim)
+    
+    def forward(self, x):
+        x = self.encoder(x)
+        mu = self.mu(x)
+        log_variance = self.log_variance(x)
+        epsilon = self.sample_noise()
+        z = mu + torch.exp(0.5*log_variance) * epsilon
+        x = self.decoder(z)
+        return x, mu, log_variance
+
 
 class VAELoss(nn.Module):
     def __init__(self):
@@ -441,8 +439,7 @@ class ConvBlock(nn.Module):
                  activation : Callable[[torch.Tensor], torch.Tensor] = nn.ReLU, # TODO: Change to leakyrelu
                  conv_type : str = 'downsample',
                  output_padding : int = 0,
-                 norm = None,
-                 dropout = None) -> None:
+                 norm = None) -> None:
         super().__init__()
 
         self.conv_type = conv_type
@@ -473,15 +470,12 @@ class ConvBlock(nn.Module):
             )
 
         self.norm = nn.BatchNorm2d(output_dim) if norm else None
-        self.dropout = nn.Dropout(dropout) if dropout else None
 
     def forward(self, x):
 
         x = self.conv(x)
         if self.norm:
             x = self.norm(x)
-        if self.dropout:
-            x = self.dropout(x)
         return x
 
 
