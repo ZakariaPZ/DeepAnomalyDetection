@@ -67,7 +67,7 @@ class LazyConvBlock(torch.nn.Module):
         self.dropout = torch.nn.Dropout(dropout) if dropout else None
 
     def forward(self, inputs: torch.Tensor, flatten: th.Optional[bool] = None) -> torch.Tensor:
-        outputs = self.conv(outputs)
+        outputs = self.conv(inputs)
         outputs = self.activation(outputs) if self.activation else outputs
         outputs = self.normalizaton(outputs) if self.normalizaton else outputs
         outputs = self.dropout(outputs) if self.dropout else outputs
