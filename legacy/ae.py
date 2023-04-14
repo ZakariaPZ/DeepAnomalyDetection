@@ -241,7 +241,7 @@ class ConvAE(pl.LightningModule):
                     pool_kernel=self.pool_kernel
                 )
             )
-     
+
         blocks.append(nn.Flatten())
         num_channels = self.encoder_width
         dims = round(height*(1/self.pool_kernel)**(self.n_layers_encoder))
