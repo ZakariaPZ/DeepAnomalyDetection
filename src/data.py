@@ -1,5 +1,6 @@
 import typing as th
 from lightning_toolbox.data import DataModule
+from lightning_toolbox.data.module import transform_dataset
 import torch
 import numpy as np
 
@@ -60,16 +61,22 @@ class NoveltyDetectionDatamodule(DataModule):
         self,
         # normal/anomaly
         normal_targets: th.Optional[th.List[int]] = None,
-        **kwargs
+        **kwargs  # see lightning_toolbox.data.DataModule for more details
     ):
         super().__init__(**kwargs)
         self.normal_targets = normal_targets
 
     def setup(self, stage: str = None):
-        super().setup(stage)  # this will create self.train_dataset, self.val_dataset, self.test_dataset
+        super().setup(
+            stage, transform=False
+        )  # this will create self.train_dataset, self.val_dataset, self.test_dataset
+
         if stage == "fit" and self.train_dataset is not None and self.normal_targets is not None:
             self.train_data = KeepNormalDataset(self.train_data, self.normal_targets)
+            self.train_data = transform_dataset(self.train_data, self.train_transforms)
         if stage == "fit" and self.val_dataset is not None and self.normal_targets is not None:
             self.val_data = IsNormalDataset(self.val_data, self.normal_targets)
+            self.val_data = transform_dataset(self.val_data, self.val_transforms)
         if stage == "test" and self.test_dataset is not None and self.normal_targets is not None:
             self.test_data = IsNormalDataset(self.test_data, self.normal_targets)
+            self.test_data = transform_dataset(self.test_data, self.test_transforms)
