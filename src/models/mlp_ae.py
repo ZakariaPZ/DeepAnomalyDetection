@@ -13,16 +13,16 @@ class MLPAutoEncoder(torch.nn.Sequential):
         decoder_width: int,
         latent_dim: int,
         scaling_factor: float = 0.5,
-        args: th.Optional[dict] = None,  # see LazyMLP for args
-        encoder_args: th.Optional[dict] = None,  # overrides args
-        decoder_args: th.Optional[dict] = None,  # overrides args
+        encoder_args: th.Optional[dict] = None,  # overrides args for encoder
+        decoder_args: th.Optional[dict] = None,  # overrides args for decoder
+        **args: th.Optional[dict],  # see LazyMLP for args
     ):
         super().__init__()
 
         self.encoder_depth, self.decoder_depth = encoder_depth, decoder_depth
         self.encoder_width, self.decoder_width = encoder_width, decoder_width
 
-        self.input_shape = input_shape
+        self.input_shape = input_shape if isinstance(input_shape, tuple) else tuple(input_shape)
         self.scaling_factor, self.latent_dim = scaling_factor, latent_dim
 
         # check that the scaling factor is valid
@@ -56,7 +56,7 @@ class MLPAutoEncoder(torch.nn.Sequential):
             layers=[int(decoder_width * scaling_factor**i) for i in range(decoder_depth)][::-1],
             **decoder_args,
         )
-    
+
     def forward(self, x):
         x = self.encoder(x)
         x = self.decoder(x)
