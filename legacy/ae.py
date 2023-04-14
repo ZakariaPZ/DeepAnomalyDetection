@@ -244,7 +244,7 @@ class ConvAE(pl.LightningModule):
      
         blocks.append(nn.Flatten())
         num_channels = self.encoder_width
-        dims = int(height*(1/self.pool_kernel)**(self.n_layers_encoder))
+        dims = round(height*(1/self.pool_kernel)**(self.n_layers_encoder))
         blocks.append(nn.Linear(num_channels * dims * dims, self.latent_dim))
         self.encoder = nn.Sequential(*blocks)
 
@@ -423,7 +423,7 @@ class ConvBlock(nn.Module):
                  kernel_size : int = 3,
                  stride : int = 1,
                  padding : int = 1,
-                 activation : Callable[[torch.Tensor], torch.Tensor] = nn.ReLU, # TODO: Change to leakyrelu
+                 activation : Callable[[torch.Tensor], torch.Tensor] = nn.LeakyReLU, 
                  conv_type : str = 'downsample',
                  output_padding : int = 0,
                  norm = None) -> None:
@@ -438,10 +438,10 @@ class ConvBlock(nn.Module):
                 nn.Conv2d(input_dim, 
                           output_dim, 
                           kernel_size=kernel_size, 
-                          stride=1,
+                          stride=2,
                           padding=padding),
-                activation(),
-                nn.MaxPool2d(pool_kernel) 
+                activation()
+                # nn.MaxPool2d(pool_kernel) 
             )
 
         else:
