@@ -343,6 +343,7 @@ class ConvAE(pl.LightningModule):
         x_hat = self.decoder(z)
         return x_hat
 
+
 class ConvVAE(ConvAE):
     def __init__(self, 
                    *args,
@@ -353,14 +354,13 @@ class ConvVAE(ConvAE):
         blocks = []
         for i in range(self.n_layers_encoder):
             in_channels = self.input_dim if i == 0 else int(self.encoder_width * self.scaling_factor ** (self.n_layers_encoder - i))
-            out_channels = int(self.encoder_width * self.scaling_factor ** (self.n_layers_encoder - (i + 1)))
+            out_channels = round(self.encoder_width * self.scaling_factor ** (self.n_layers_encoder - (i + 1)))
             blocks.append(
                 self.block(
                     in_channels,
                     out_channels,
-                    norm=self.norm, dropout=self.dropout,
-                    conv_type='downsample',
-                    pool_kernel=self.pool_kernel
+                    norm=self.norm, 
+                    conv_type='downsample'
                 )
             )
      
@@ -368,7 +368,7 @@ class ConvVAE(ConvAE):
         self.encoder = nn.Sequential(*blocks)
 
         num_channels = self.encoder_width
-        dims = int(self.height*(1/self.pool_kernel)**(self.n_layers_encoder))
+        dims = round(self.height*(1/self.pool_kernel)**(self.n_layers_encoder))
 
         self.mu = nn.Linear(dims * dims * num_channels, self.latent_dim)
         self.log_variance = nn.Linear(dims * dims * num_channels, self.latent_dim)
@@ -376,25 +376,12 @@ class ConvVAE(ConvAE):
     
     def training_step(self, batch, batch_idx):
         x, y = batch
-        x_hat = self(x)
-        loss = self.VAE_loss(x_hat, x)
+        x_hat, mu, log_variance = self(x)
+        loss = self.VAE_loss(x_hat, x, mu, log_variance)
         self.log('train_loss', loss)
-        self.threshold = self.VAE_Loss.reconstruction_loss(x_hat, x)
+        self.threshold = self.VAE_loss.reconstruction_loss(x_hat, x).mean()
         self.log('threshold', self.threshold)
         return loss
-
-    def _shared_eval_step(self, batch, batch_idx):
-        x, y = batch
-
-        x_hat = self(x)
-        loss = (x_hat, x.reshape(x.shape[0], -1))
-
-        all_mse = self.VAE_Loss.reconstruction_loss(x_hat, x.reshape(x.shape[0], -1), reduction='none').mean(dim=-1)
-        y_hat = torch.where(all_mse > self.threshold, torch.zeros_like(y), torch.ones_like(y))
-        acc = accuracy(y_hat, y, task='binary')
-
-        # TODO: add auroc
-        return loss, acc
     
     def sample_noise(self):
         return torch.randn(self.latent_dim)
@@ -403,7 +390,7 @@ class ConvVAE(ConvAE):
         x = self.encoder(x)
         mu = self.mu(x)
         log_variance = self.log_variance(x)
-        epsilon = self.sample_noise()
+        epsilon = self.sample_noise().to(mu.device)
         z = mu + torch.exp(0.5*log_variance) * epsilon
         x = self.decoder(z)
         return x, mu, log_variance
@@ -412,7 +399,7 @@ class ConvVAE(ConvAE):
 class VAELoss(nn.Module):
     def __init__(self):
         super(VAELoss, self).__init__()
-        self.alpha = 1100
+        self.alpha = 3000
 
     def kl_loss(self, mu, log_variance):
         loss = -0.5 * torch.sum(1 + log_variance - torch.square(mu) - torch.exp(log_variance), dim=1)
@@ -504,7 +491,6 @@ if __name__ == "__main__":
         'latent_dim' : [32], # FC 
         'scaling_factor' : [1/2],
         'norm' : ['batch'],
-        'dropout' : [0.3],
         'padding' : [1],
         'kernel_size' : [3],
         'pool_kernel' : [2],
