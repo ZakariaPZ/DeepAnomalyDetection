@@ -126,9 +126,9 @@ class NoveltyAUROCCallback(pl.Callback):
         if is_val:
             # get the points on the ROC curve
             fpr, tpr, thresholds = torchmetrics.functional.roc(
-                preds = scores.reshape(-1),
-                target = labels.reshape(-1),
-                task = 'binary',
+                preds=scores.reshape(-1),
+                target=labels.reshape(-1),
+                task="binary",
             )
             # find the product of tpr, (1-fpr)
             product = tpr * (1 - fpr)
@@ -152,6 +152,7 @@ class NoveltyAUROCCallback(pl.Callback):
                 prog_bar=is_val and name == "loss",
             )
 
+
 class ReconstructionCallback(pl.Callback):
     def __init__(
         self,
@@ -162,25 +163,20 @@ class ReconstructionCallback(pl.Callback):
 
         super().__init__()
 
-        assert(best or worst), "At least one of best or worst must be True"
+        assert best or worst, "At least one of best or worst must be True"
 
     def on_validation_batch_end(
-            self,
-            trainer: "pl.Trainer",
-            pl_module: "pl.LightningModule",
-            outputs: th.Optional["STEP_OUTPUT"],
-            batch: th.Any,
-            batch_idx: int,
-            dataloader_idx: int = 0
-        ) -> None:
-        
-        x,y = batch
+        self,
+        trainer: "pl.Trainer",
+        pl_module: "pl.LightningModule",
+        outputs: th.Optional["STEP_OUTPUT"],
+        batch: th.Any,
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
+        x, y = batch
         # get the reconstruction loss for each sample in the batch
-        reconstruction_loss = torch.nn.functional.mse_loss(
-            x,
-            pl_module(x),
-            reduction="none"
-        ).mean(dim=(1,2,3))
+        reconstruction_loss = torch.nn.functional.mse_loss(x, pl_module(x), reduction="none").mean(dim=(1, 2, 3))
 
         # get the indices of the best and worst reconstruction
         best_idx = reconstruction_loss.argsort(descending=False)[0]
@@ -192,7 +188,6 @@ class ReconstructionCallback(pl.Callback):
         # get the best and worst reconstruction
         best_reconstruction = pl_module(best_input.unsqueeze(0)).squeeze(0)
         worst_reconstruction = pl_module(worst_input.unsqueeze(0)).squeeze(0)
-
 
         # log the best and worst reconstruction
         if self.best:
@@ -212,17 +207,18 @@ class ReconstructionCallback(pl.Callback):
                 global_step=trainer.global_step,
             )
 
+
 class ConfusionMatrixCallback(pl.Callback):
     def __init__(
         self,
         num_classes: int = 10,
     ):
         super().__init__()
-        
+
         self.num_classes = num_classes
+
     def on_validation_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         pl_module.cm = torch.zeros(self.num_classes, self.num_classes)
-        
 
     def on_validation_batch_end(
         self,
@@ -231,64 +227,59 @@ class ConfusionMatrixCallback(pl.Callback):
         outputs: th.Optional["STEP_OUTPUT"],
         batch: th.Any,
         batch_idx: int,
-        dataloader_idx: int = 0
+        dataloader_idx: int = 0,
     ) -> None:
-        x,y = batch
-        reconstruction_loss = torch.nn.functional.mse_loss(
-            x,
-            pl_module(x),
-            reduction="none"
-        ).mean(dim=(1,2,3))
+        x, y = batch
+        reconstruction_loss = torch.nn.functional.mse_loss(x, pl_module(x), reduction="none").mean(dim=(1, 2, 3))
         # get the predicted class
-        y_hat = torch.where(torch.nn.functional.sigmoid(-1 * reconstruction_loss) < pl_module.threshold, torch.zeros_like(y), torch.ones_like(y))
+        y_hat = torch.where(
+            torch.nn.functional.sigmoid(-1 * reconstruction_loss) < pl_module.threshold,
+            torch.zeros_like(y),
+            torch.ones_like(y),
+        )
         # get the confusion matrix
 
-        cm = torchmetrics.functional.confusion_matrix(
-            y_hat,
-            y,
-            num_classes=self.num_classes,
-            task = 'multiclass'
-        )
+        cm = torchmetrics.functional.confusion_matrix(y_hat, y, num_classes=self.num_classes, task="multiclass")
         # add the confusion matrix to the total confusion matrix
         pl_module.cm += cm
 
     def on_validation_epoch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         def plot_confusion_matrix(cm, class_names):
             figure = plt.figure(figsize=(8, 8))
-            plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+            plt.imshow(cm, interpolation="nearest", cmap=plt.cm.Blues)
             plt.title("Confusion matrix")
             plt.colorbar()
             tick_marks = range(len(class_names))
             plt.xticks(tick_marks, class_names)
             plt.yticks(tick_marks, class_names)
-            
+
             # Use white text if squares are dark; otherwise black.
-            threshold = cm.max() / 2.
-            
+            threshold = cm.max() / 2.0
+
             for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
                 color = "white" if cm[i, j] > threshold else "black"
                 plt.text(j, i, cm[i, j], horizontalalignment="center", color=color)
-                
+
             plt.tight_layout()
-            plt.ylabel('True label')
-            plt.xlabel('Predicted label')
+            plt.ylabel("True label")
+            plt.xlabel("Predicted label")
             return figure
 
         def plot_to_image(figure):
             buf = io.BytesIO()
-            
+
             # Use plt.savefig to save the plot to a PNG in memory.
-            plt.savefig(buf, format='jpeg')
-            
+            plt.savefig(buf, format="jpeg")
+
             # Closing the figure prevents it from being displayed directly inside
             # the notebook.
             plt.close(figure)
             buf.seek(0)
-            
+
             image = transforms.ToTensor()(PIL.Image.open(buf))
-            
+
             return image
-        
+
         # log the confusion matrix
         pl_module.logger.experiment.add_image(
             "confusion_matrix",
