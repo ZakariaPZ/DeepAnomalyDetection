@@ -20,7 +20,7 @@ class LazyConvBlock(torch.nn.Module):
         normalization: th.Optional[str] = "torch.nn.BatchNorm2d",
         normalization_args: th.Optional[dict] = None,
         # Upsampling or downsampling
-        conv_type : th.Optional[str] = 'downsample',
+        conv_type: str = 'downsample',
         # dropout
         dropout: th.Optional[float] = None,
         # general parameters
@@ -66,7 +66,7 @@ class LazyConvBlock(torch.nn.Module):
         )
         self.dropout = torch.nn.Dropout(dropout) if dropout else None
 
-    def forward(self, inputs: torch.Tensor, flatten: th.Optional[bool] = None) -> torch.Tensor:
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         outputs = self.conv(inputs)
         outputs = self.activation(outputs) if self.activation else outputs
         outputs = self.normalizaton(outputs) if self.normalizaton else outputs
@@ -75,7 +75,7 @@ class LazyConvBlock(torch.nn.Module):
         return outputs
 
 
-class LazyMLP(torch.nn.Sequential):
+class LazyConv(torch.nn.Sequential):
     """
     Multi-layer Perceptron (MLP) Network.
     Attributes:
@@ -94,14 +94,19 @@ class LazyMLP(torch.nn.Sequential):
 
     def __init__(
         self,
-        layers: th.List[int],
-        out_features: int,
-        **kwargs,
+        layers: th.List[th.Tuple[int, int]],
+        conv_type: str,
+        **kwargs
     ):
         super().__init__()
-        for idx, features in enumerate((layers or []) + [out_features]):
+        for idx, items in enumerate(layers or []):
+            features, output_padding = items
             args = dict(kwargs)
             if idx == len(layers or []):
-                args["activation"] = None
+                args["activation"] = torch.nn.Sigmoid
                 args["normalization"] = None
-            self.add_module(f"block_{idx}", LazyConvBlock(out_features=features, **args))
+            
+            self.add_module(f"block_{idx}", LazyConvBlock(out_features=features, 
+                                                          output_padding=output_padding,
+                                                          conv_type=conv_type,
+                                                           **args))
