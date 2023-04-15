@@ -245,13 +245,14 @@ class ConvAE(pl.LightningModule):
         blocks.append(nn.Flatten())
         num_channels = self.encoder_width
         dims = round(height*(1/self.pool_kernel)**(self.n_layers_encoder))
-        blocks.append(nn.Linear(num_channels * dims * dims, self.latent_dim))
+        blocks.append(nn.Linear(num_channels * dims * dims, self.latent_dim)) # bug: should be decoder_width, not num_channels
         self.encoder = nn.Sequential(*blocks)
 
         # Decoder
         decoder_dim = round(self.height/2**self.n_layers_decoder)
         blocks_dec = [nn.Linear(self.latent_dim, num_channels * decoder_dim * decoder_dim), 
-                  Reshape(-1, num_channels, decoder_dim, decoder_dim)] 
+                  Reshape(-1, num_channels, decoder_dim, decoder_dim)]
+         
         for i in range(self.n_layers_decoder):
             H_in = round(height*(1/self.pool_kernel)**(self.n_layers_decoder - i))
             H_out = round(height*(1/self.pool_kernel)**(self.n_layers_decoder - (i+1)))
