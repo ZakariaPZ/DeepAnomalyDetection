@@ -59,6 +59,9 @@ class CNNAutoEncoder(torch.nn.Sequential):
         encoder_dim = round(self.input_shape[1]*(1/stride)**(self.encoder_depth))
         self.encoder_linear = torch.nn.Linear(encoder_width * encoder_dim * encoder_dim, self.latent_dim)
 
+        self.encoder.add_module('flatten', module=torch.nn.Flatten())
+        self.encoder.add_module('encoder_linear', module=self.encoder_linear)
+
         # Decoder
         self.decoder_dim = round(self.input_shape[1]/2**self.decoder_depth)
         self.decoder_linear = torch.nn.Linear(self.latent_dim, self.decoder_width * self.decoder_dim * self.decoder_dim)
@@ -87,7 +90,7 @@ class CNNAutoEncoder(torch.nn.Sequential):
         reparameterize: th.Optional[bool] = None,
     ):
         assert inputs is not None or latent is not None, "Must provide either inputs or latent"
-        x = self.encoder_linear(torch.nn.Flatten()(self.encoder(inputs))) if latent is None else latent
+        x = self.encoder(inputs) if latent is None else latent
 
         reparameterize = reparameterize if reparameterize is not None else self.vae
         if reparameterize:
@@ -96,6 +99,7 @@ class CNNAutoEncoder(torch.nn.Sequential):
             # sample from the latent space
             x = mu + torch.exp(log_variance / 2) * torch.randn_like(mu)
         
-        x = self.decoder_linear(x).view(-1, self.decoder_width, self.decoder_dim, self.decoder_dim)
+        x = self.decoder_linear(x)
+        x = x.view(-1, self.decoder_width, self.decoder_dim, self.decoder_dim)
         x = self.decoder(x)
         return x
