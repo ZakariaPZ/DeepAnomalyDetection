@@ -12,11 +12,11 @@ init_args:
     # ------------------------
     # architecture capacity
     input_shape: [1, 28, 28]
-    latent_dim: 16
-    encoder_depth: 3
-    decoder_depth: 3
-    encoder_width: 64
-    decoder_width: 64
+    latent_dim: 32
+    encoder_depth: 4
+    decoder_depth: 2
+    encoder_width: 16
+    decoder_width: 16
     # ------------------------
     # architectural computational configurations
     activation: torch.nn.LeakyReLU
