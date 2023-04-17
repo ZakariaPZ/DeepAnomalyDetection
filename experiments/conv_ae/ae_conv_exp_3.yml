@@ -15,8 +15,8 @@ init_args:
     latent_dim: 32
     encoder_depth: 2
     decoder_depth: 2
-    encoder_width: 64
-    decoder_width: 64
+    encoder_width: 128
+    decoder_width: 128
     # ------------------------
     # architectural computational configurations
     activation: torch.nn.LeakyReLU
