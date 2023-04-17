@@ -21,7 +21,7 @@ check_val_every_n_epoch: 1
 # tracking & debugging
 # track_grad_norm: inf
 # logger is setup while initializing the trainer
-enable_checkpointing: true # for faster training
+enable_checkpointing: false # for faster training
 enable_model_summary: true # for debugging
 enable_progress_bar: false # for faster training
 
@@ -52,3 +52,11 @@ callbacks:
   - class_path: src.callbacks.ConfusionMatrixCallback
     init_args:
       num_classes: 2
+
+  - class_path: lightning.pytorch.callbacks.EarlyStopping
+    init_args:
+      monitor: loss/train
+      min_delta: 0.0
+      patience: 50
+      verbose: false
+      mode: min
