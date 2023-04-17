@@ -13,8 +13,8 @@ init_args:
     # architecture capacity
     input_shape: [1, 28, 28]
     latent_dim: 32
-    encoder_depth: 2
-    decoder_depth: 1
+    encoder_depth: 4
+    decoder_depth: 2
     encoder_width: 16
     decoder_width: 16
     # ------------------------
@@ -31,7 +31,7 @@ init_args:
   # --------------------------------
   # the optimizer
   optimizer: torch.optim.Adam
-  lr: 0.0001
+  lr: 0.01
 
   # scheduler: torch.optim.lr_scheduler.ReduceLROnPlateau
   # scheduler_args:
