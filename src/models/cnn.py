@@ -103,7 +103,7 @@ class LazyConv(torch.nn.Sequential):
             features, output_padding = items
             args = dict(kwargs)
             if idx == len(layers or []):
-                args["activation"] = torch.nn.Sigmoid
+                args["activation"] = None
                 args["normalization"] = None
             
             self.add_module(f"block_{idx}", LazyConvBlock(out_features=features, 
