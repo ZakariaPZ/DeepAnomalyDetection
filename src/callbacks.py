@@ -218,7 +218,7 @@ class ConfusionMatrixCallback(pl.Callback):
         self.num_classes = num_classes
 
     def on_validation_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        pl_module.cm = torch.zeros(self.num_classes, self.num_classes)
+        pl_module.cm = torch.zeros(self.num_classes, self.num_classes).cpu()
 
     def on_validation_batch_end(
         self,
@@ -241,7 +241,7 @@ class ConfusionMatrixCallback(pl.Callback):
 
         cm = torchmetrics.functional.confusion_matrix(y_hat, y, num_classes=self.num_classes, task="multiclass")
         # add the confusion matrix to the total confusion matrix
-        pl_module.cm += cm
+        pl_module.cm += cm.cpu()
 
     def on_validation_epoch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         def plot_confusion_matrix(cm, class_names):
