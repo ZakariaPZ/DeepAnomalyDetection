@@ -1,0 +1,51 @@
+# checkout the documentation for more details
+# https://lightning.ai/docs/pytorch/stable/common/trainer.html#trainer-class-api
+# ------------------------
+# device
+accelerator: cpu
+devices: auto
+
+# ------------------------
+# optimization
+# gradient_clip_algorithm: value
+# gradient_clip_val: 1.0
+# precision: 16
+
+# ------------------------
+# limits & training loop controls
+max_epochs: 600
+log_every_n_steps: 4
+check_val_every_n_epoch: 2
+
+# ------------------------
+# tracking & debugging
+# track_grad_norm: inf
+# logger is setup while initializing the trainer
+enable_checkpointing: false # for faster training
+enable_model_summary: true # for debugging
+enable_progress_bar: false # for faster training
+
+# ------------------------
+# logger
+logger:
+  class_path: lightning.pytorch.loggers.WandbLogger
+  init_args:
+    project: ae
+    name: "autoencoder" # experiment name
+    version: null # version number
+# ------------------------
+# callbacks
+callbacks:
+  # auroc callbacks for all the objective terms
+  - class_path: src.callbacks.NoveltyAUROCCallback
+    init_args:
+      score_negative: true # use the negative sign of the objective as normal score
+      objective_key: loss # use the overall loss as normal score
+
+  # learning rate monitor
+  - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+    init_args:
+      logging_interval: epoch
+
+  # visualize the reconstructions
+  - class_path: src.callbacks.ReconstructionCallback
