@@ -39,25 +39,26 @@ logger:
 # ------------------------
 # callbacks
 callbacks:
+  # auroc callbacks for all the objective terms
   - class_path: src.callbacks.NoveltyAUROCCallback
     init_args:
       score_negative: true # use the negative sign of the objective as normal score
       objective_key: loss # use the overall loss as normal score
+
   - class_path: src.callbacks.NoveltyAUROCCallback
     init_args:
       score_negative: true # use the negative sign of the objective as normal score
       objective_key: kld # use the kld as normal score
+
   - class_path: src.callbacks.NoveltyAUROCCallback
     init_args:
       score_negative: true # use the negative sign of the objective as normal score
       objective_key: mse # use the mse as normal score
 
+  # learning rate monitor
   - class_path: lightning.pytorch.callbacks.LearningRateMonitor
     init_args:
       logging_interval: epoch
 
+  # visualize the reconstructions
   - class_path: src.callbacks.ReconstructionCallback
-
-  # - class_path: src.callbacks.ConfusionMatrixCallback
-  #   init_args:
-  #     num_classes: 2

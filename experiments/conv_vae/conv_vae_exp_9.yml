@@ -1,0 +1,53 @@
+# checkout the implementation of the base TrainingModule class
+# for more details and to see what other arguments you can pass
+# https://github.com/vahidzee/lightning-toolbox/blob/main/lightning_toolbox/training/module.py
+class_path: lightning_toolbox.TrainingModule
+init_args:
+  # the model
+  model_cls: src.models.cnn_ae.CNNAutoEncoder
+  model_args:
+    # ------------------------
+    # architecture capacity
+    vae: true # whether to use a VAE or not
+    # ------------------------
+    # architecture capacity
+    input_shape: [1, 28, 28]
+    latent_dim: 32
+    encoder_depth: 2
+    decoder_depth: 4
+    encoder_width: 64
+    decoder_width: 64
+    # ------------------------
+    # architectural computational configurations
+    activation: torch.nn.LeakyReLU
+    bias: true
+    # normalization layer (batchnorm, layernorm, etc.)
+    normalization: torch.nn.BatchNorm2d
+    normalization_args:
+      affine: true
+      track_running_stats: true
+    dropout: 0 # dropout probability
+
+  # --------------------------------
+  # the optimizer
+  optimizer: torch.optim.Adam
+  lr: 0.001
+
+  # scheduler: torch.optim.lr_scheduler.ReduceLROnPlateau
+  # scheduler_args:
+  #   mode: "min"
+  #   factor: 0.75
+  #   patience: 10
+  # scheduler_name: "lr_scheduler"
+  # scheduler_interval: "epoch"
+  # scheduler_monitor: loss/val
+
+  # --------------------------------
+  objective_args:
+    mse:
+      class_path: src.terms.ReconstructionLossTerm
+    # the following term is used for VAE training
+    kld:
+      class_path: src.terms.KLDLossTerm
+      init_args:
+        factor: 1.0 # change the factor

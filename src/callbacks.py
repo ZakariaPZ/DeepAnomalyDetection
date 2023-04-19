@@ -23,6 +23,7 @@ class NoveltyAUROCCallback(pl.Callback):
         objective_cls: th.Optional[th.Type[lightning_toolbox.Objective]] = "lightning_toolbox.Objective",
         objective_args: th.Optional[th.Dict] = None,
         score_negative: bool = False,  # if True, the score is the negative of the objective
+        name: str = "auroc",
     ):
         super().__init__()
         assert (
@@ -35,10 +36,17 @@ class NoveltyAUROCCallback(pl.Callback):
         self.__objective_recompute: bool = objective_recompute
         self.objective: lightning_toolbox.Objective = None  # type: ignore # will be set in setup
         self.score_negative = score_negative
+        self.__name = name
 
         # metrics
         self.val_auroc = torchmetrics.AUROC(num_classes=2, pos_label=1, task="binary")
         self.test_auroc = torchmetrics.AUROC(num_classes=2, pos_label=1, task="binary")
+
+    @property
+    def name(self) -> str:
+        _name = f"{self.__name}" if self.__name is not None else ""
+        _key = f"{_name}__{self.__objective_key}" if self.__objective_key is not None else _name
+        return _key
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         super().setup(trainer, pl_module, stage)
@@ -54,8 +62,8 @@ class NoveltyAUROCCallback(pl.Callback):
             self.objective = dy.get_value(self.__objective_cls)(**self.__objective_args)
 
         # bind metrics to pl_module
-        pl_module.val_auroc = self.val_auroc
-        pl_module.test_auroc = self.test_auroc
+        setattr(pl_module, f"{self.name}_val_auroc", self.val_auroc)
+        setattr(pl_module, f"{self.name}_test_auroc", self.test_auroc)
 
     def on_validation_batch_end(
         self,
@@ -115,12 +123,12 @@ class NoveltyAUROCCallback(pl.Callback):
         anomaly_scores = scores[labels == 0]
         results = objective_results if self.__objective_recompute else {}
         if normal_scores.shape[0] != 0:
-            results["novelty_auroc/score/normal"] = normal_scores.mean()
+            results["score/normal"] = normal_scores.mean()
         if anomaly_scores.shape[0] != 0:
-            results["novelty_auroc/score/anomaly"] = anomaly_scores.mean()
+            results["score/anomaly"] = anomaly_scores.mean()
         if anomaly_scores.shape[0] != 0 and normal_scores.shape[0] != 0:
-            results["novelty_auroc/score/difference"] = normal_scores.mean() - anomaly_scores.mean()
-        results["novelty_auroc"] = metric
+            results["score/difference"] = normal_scores.mean() - anomaly_scores.mean()
+        results["auroc"] = metric
         self.log_results(pl_module, results, name=name)
 
         if is_val:
@@ -135,15 +143,17 @@ class NoveltyAUROCCallback(pl.Callback):
             # get the threshold with the highest product
             i = torch.argmax(product)
             # save the threshold for later
-            pl_module.threshold = thresholds[i]
+            pl_module.threshold = getattr(pl_module, "threshold", dict())
+            pl_module.threshold[self.__name] = thresholds[i]
 
         return results
 
     def log_results(self, pl_module: pl.LightningModule, results: th.Dict, name: str = "val"):
         is_val = name == "val"
+        _key = f'{self.name.replace("__", "/")}/' if self.name is not None else ""
         for item, value in results.items():
             pl_module.log(
-                f"{item}/{name}",
+                f"{_key}{item}/{name}",
                 value.mean() if isinstance(value, torch.Tensor) else value,
                 on_step=not is_val,
                 on_epoch=is_val,
@@ -210,12 +220,13 @@ class ReconstructionCallback(pl.Callback):
 
 class ConfusionMatrixCallback(pl.Callback):
     def __init__(
-        self,
-        num_classes: int = 10,
+        self, num_classes: int = 10, threshold_lookup: str = "auroc", score: str = "loss", negative_score: bool = False
     ):
         super().__init__()
-
+        self.threshold_lookup = threshold_lookup
         self.num_classes = num_classes
+        self.score = score
+        self.negative_score = negative_score
 
     def on_validation_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         pl_module.cm = torch.zeros(self.num_classes, self.num_classes).cpu()
@@ -230,10 +241,11 @@ class ConfusionMatrixCallback(pl.Callback):
         dataloader_idx: int = 0,
     ) -> None:
         x, y = batch
-        reconstruction_loss = torch.nn.functional.mse_loss(x, pl_module(x), reduction="none").mean(dim=(1, 2, 3))
+        scores = pl_module.objective.results[self.score]
+
         # get the predicted class
         y_hat = torch.where(
-            torch.sigmoid(-1 * reconstruction_loss) < pl_module.threshold,
+            torch.sigmoid(-1 * scores) < pl_module.threshold,
             torch.zeros_like(y),
             torch.ones_like(y),
         )

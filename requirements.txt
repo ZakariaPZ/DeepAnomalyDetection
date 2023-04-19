@@ -1,5 +1,6 @@
 lightning-toolbox
 lightning
+jsonargparse[signatures]
 torch
 torchvision
 torchmetrics
