@@ -1,11 +1,18 @@
 from lightning_toolbox.objective_function import ObjectiveTerm
 import torch
+import typing as th
 
 
 class ReconstructionLossTerm(ObjectiveTerm):
+    def __init__(self, noise_size: th.Optional[float] = None, **kwargs):
+        super().__init__(**kwargs)
+        self.noise_size = noise_size
+
     def __call__(self, training_module, batch, **kwargs):
         inputs, _ = batch
-        latent = training_module.model.encoder(inputs)
+        latent = training_module.model.encoder(
+            inputs if self.noise_size is None else inputs + torch.randn_like(inputs) * self.noise_size
+        )
         self.remember(latent=latent)  # save for later use (e.g. in a callback or in another term)
         # the model forward pass takes care of the reparameterization if needed
         reconstruction = training_module(latent=latent)
