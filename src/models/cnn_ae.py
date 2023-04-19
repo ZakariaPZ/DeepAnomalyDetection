@@ -2,6 +2,16 @@ from .cnn import LazyConv
 import typing as th
 import torch
 
+
+class ReshapeLayer(torch.nn.Module):
+    def __init__(self, shape: th.Tuple[int, ...]):
+        super().__init__()
+        self.shape = shape
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x.view(self.shape)
+
+
 class CNNAutoEncoder(torch.nn.Sequential):
     def __init__(
         self,
@@ -52,36 +62,38 @@ class CNNAutoEncoder(torch.nn.Sequential):
 
         # Encoder
         self.encoder = LazyConv(
-            layers=[(int(encoder_width * scaling_factor ** (encoder_depth - (i + 1))), None) for i in range(encoder_depth)],
-            conv_type='downsample',
-            **encoder_args
+            layers=[
+                (int(encoder_width * scaling_factor ** (encoder_depth - (i + 1))), None) for i in range(encoder_depth)
+            ],
+            conv_type="downsample",
+            **encoder_args,
         )
-        encoder_dim = round(self.input_shape[1]*(1/stride)**(self.encoder_depth))
-        self.encoder_linear = torch.nn.Linear(encoder_width * encoder_dim * encoder_dim, self.latent_dim)
-
-        self.encoder.add_module('flatten', module=torch.nn.Flatten())
-        self.encoder.add_module('encoder_linear', module=self.encoder_linear)
+        encoder_linear = torch.nn.LazyLinear(self.latent_dim)
+        self.encoder.add_module("flatten", module=torch.nn.Flatten())
+        self.encoder.add_module("encoder_linear", module=encoder_linear)
 
         # Decoder
-        self.decoder_dim = round(self.input_shape[1]/2**self.decoder_depth)
-        self.decoder_linear = torch.nn.Linear(self.latent_dim, self.decoder_width * self.decoder_dim * self.decoder_dim)
+        self.decoder_dim = round(self.input_shape[1] / 2**self.decoder_depth)
+        decoder_linear = torch.nn.LazyLinear(self.decoder_width * self.decoder_dim * self.decoder_dim)
 
         decoder_layers = []
         for i in range(decoder_depth):
-            H_in = round(self.input_shape[1]*(1/stride)**(decoder_depth - i))
-            H_out = round(self.input_shape[1]*(1/stride)**(decoder_depth - (i+1)))
+            H_in = round(self.input_shape[1] * (1 / stride) ** (decoder_depth - i))
+            H_out = round(self.input_shape[1] * (1 / stride) ** (decoder_depth - (i + 1)))
             dilation = 1
             output_padding = H_out - ((H_in - 1) * stride - 2 * padding + dilation * (kernel_size - 1) + 1)
-            out_channels = self.input_shape[0] if i == decoder_depth - 1 else int(decoder_width * scaling_factor ** (i))
+            out_channels = (
+                self.input_shape[0] if i == decoder_depth - 1 else int(decoder_width * scaling_factor ** (i))
+            )
 
             decoder_layers.append((out_channels, output_padding))
 
-        self.decoder = LazyConv(
-            decoder_layers,
-            conv_type='upsample',
-            **decoder_args
+        decoder_convs = LazyConv(decoder_layers, conv_type="upsample", **decoder_args)
+        self.decoder = torch.nn.Sequential(
+            decoder_linear,
+            ReshapeLayer((-1, self.decoder_width, self.decoder_dim, self.decoder_dim)),
+            decoder_convs,
         )
-
 
     def forward(
         self,
@@ -98,8 +110,5 @@ class CNNAutoEncoder(torch.nn.Sequential):
             mu, log_variance = x.chunk(2, dim=1)
             # sample from the latent space
             x = mu + torch.exp(log_variance / 2) * torch.randn_like(mu)
-        
-        x = self.decoder_linear(x)
-        x = x.view(-1, self.decoder_width, self.decoder_dim, self.decoder_dim)
-        x = self.decoder(x)
-        return x
+
+        return self.decoder(x)
