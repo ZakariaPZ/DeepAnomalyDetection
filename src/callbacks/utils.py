@@ -27,7 +27,7 @@ def log_images(
     global_step: th.Optional[int] = None,
     **kwargs,
 ):
-    if isinstance(logger, WandbLogger):
+    if isinstance(logger, WandbLogger) or not hasattr(logger.experiment, "add_images"):
         log_images_wandb(logger, key, images, captions)
     else:
         # then assume it is a tensorboard logger
