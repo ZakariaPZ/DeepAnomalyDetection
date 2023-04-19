@@ -32,7 +32,7 @@ def log_images(
     else:
         # then assume it is a tensorboard logger
         logger.experiment.add_images(
-            tag=key,
-            images=torchvision.utils.make_grid(images, **kwargs),
+            key,
+            torchvision.utils.make_grid(images, **kwargs).unsqueeze(0),
             global_step=global_step,
         )

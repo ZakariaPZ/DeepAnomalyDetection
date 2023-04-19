@@ -1,18 +1,14 @@
 import io
 import itertools
 import typing as th
-
-import dypy as dy
 import lightning.pytorch as pl
 from lightning.pytorch.loggers.wandb import WandbLogger
-import lightning_toolbox
 import matplotlib.pyplot as plt
-import numpy as np
 import PIL
 import torch
 import torchmetrics
 from torchvision import transforms
-from torchvision.utils import make_grid
+from .utils import log_images
 
 
 class ConfusionMatrixCallback(pl.Callback):
