@@ -36,11 +36,17 @@ class NoveltyAUROCCallback(pl.Callback):
         self.__objective_recompute: bool = objective_recompute
         self.objective: lightning_toolbox.Objective = None  # type: ignore # will be set in setup
         self.score_negative = score_negative
-        self.name = name
+        self.__name = name
 
         # metrics
         self.val_auroc = torchmetrics.AUROC(num_classes=2, pos_label=1, task="binary")
         self.test_auroc = torchmetrics.AUROC(num_classes=2, pos_label=1, task="binary")
+
+    @property
+    def name(self) -> str:
+        _name = f"{self.__name}" if self.__name is not None else ""
+        _key = f"{_name}__{self.__objective_key}" if self.__objective_key is not None else _name
+        return _key
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         super().setup(trainer, pl_module, stage)
@@ -56,8 +62,8 @@ class NoveltyAUROCCallback(pl.Callback):
             self.objective = dy.get_value(self.__objective_cls)(**self.__objective_args)
 
         # bind metrics to pl_module
-        pl_module.val_auroc = self.val_auroc
-        pl_module.test_auroc = self.test_auroc
+        setattr(pl_module, f"{self.name}_val_auroc", self.val_auroc)
+        setattr(pl_module, f"{self.name}_test_auroc", self.test_auroc)
 
     def on_validation_batch_end(
         self,
@@ -138,16 +144,16 @@ class NoveltyAUROCCallback(pl.Callback):
             i = torch.argmax(product)
             # save the threshold for later
             pl_module.threshold = getattr(pl_module, "threshold", dict())
-            pl_module.threshold[self.name] = thresholds[i]
+            pl_module.threshold[self.__name] = thresholds[i]
 
         return results
 
     def log_results(self, pl_module: pl.LightningModule, results: th.Dict, name: str = "val"):
         is_val = name == "val"
-        _name = f"{self.name}/"
+        _key = f'{self.name.replace("__", "/")}/' if self.name is not None else ""
         for item, value in results.items():
             pl_module.log(
-                f"{_name}{item}/{name}",
+                f"{_key}{item}/{name}",
                 value.mean() if isinstance(value, torch.Tensor) else value,
                 on_step=not is_val,
                 on_epoch=is_val,
