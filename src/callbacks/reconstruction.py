@@ -20,7 +20,7 @@ class ReconstructionCallback(pl.Callback):
         self,
         trainer: "pl.Trainer",
         pl_module: "pl.LightningModule",
-        outputs: th.Optional["STEP_OUTPUT"],
+        outputs: th.Optional["STEP_OUTPUT"],  # type: ignore
         batch: th.Any,
         batch_idx: int,
         dataloader_idx: int = 0,

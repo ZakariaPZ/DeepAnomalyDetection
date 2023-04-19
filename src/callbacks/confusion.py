@@ -2,7 +2,6 @@ import io
 import itertools
 import typing as th
 import lightning.pytorch as pl
-from lightning.pytorch.loggers.wandb import WandbLogger
 import matplotlib.pyplot as plt
 import PIL
 import torch
@@ -28,7 +27,7 @@ class ConfusionMatrixCallback(pl.Callback):
         self,
         trainer: "pl.Trainer",
         pl_module: "pl.LightningModule",
-        outputs: th.Optional["STEP_OUTPUT"],
+        outputs: th.Optional["STEP_OUTPUT"],  # type: ignore
         batch: th.Any,
         batch_idx: int,
         dataloader_idx: int = 0,

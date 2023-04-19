@@ -8,9 +8,9 @@ class ReconstructionLossTerm(ObjectiveTerm):
         latent = training_module.model.encoder(inputs)
         self.remember(latent=latent)  # save for later use (e.g. in a callback or in another term)
         # the model forward pass takes care of the reparameterization if needed
-        return torch.nn.functional.mse_loss(training_module(latent=latent), inputs, reduction="none").mean(
-            dim=(1, 2, 3)
-        )
+        reconstruction = training_module(latent=latent)
+        self.remember(reconstruction=reconstruction)  # save for later use (e.g. in a callback)
+        return torch.nn.functional.mse_loss(reconstruction, inputs, reduction="none").mean(dim=(1, 2, 3))
 
 
 class KLDLossTerm(ObjectiveTerm):
